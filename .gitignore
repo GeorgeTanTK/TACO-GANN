@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (download via download_data.py)
+data/*.fvecs
+data/*.jsonl
+data/*.pkl
+
+# Intermediate state files
+*.pkl
+_state.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large outputs
+figures/*.png
+figures/*.pdf

@@ -1,0 +1,182 @@
+{
+  "PostFilter": {
+    "<0.5%": {
+      "mean_recall": 0.6154,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 0.6231,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 0.6892,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 0.8715,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 0.9119,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 0.944,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 0.9657,
+      "count": 35
+    }
+  },
+  "ACORN-1": {
+    "<0.5%": {
+      "mean_recall": 0.5769,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 0.7261,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 0.7936,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 0.9073,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 0.9042,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 0.941,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 0.88,
+      "count": 35
+    }
+  },
+  "TANNS+Post": {
+    "<0.5%": {
+      "mean_recall": 1.0,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 1.0,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 1.0,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 1.0,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 1.0,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 1.0,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 1.0,
+      "count": 35
+    }
+  },
+  "FDiskANN+Post": {
+    "<0.5%": {
+      "mean_recall": 1.0,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 0.9683,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 0.9946,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 1.0,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 1.0,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 1.0,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 1.0,
+      "count": 35
+    }
+  },
+  "TANNS-C": {
+    "<0.5%": {
+      "mean_recall": 1.0,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 1.0,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 0.9878,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 0.997,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 0.9965,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 0.999,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 1.0,
+      "count": 35
+    }
+  },
+  "PreFilter": {
+    "<0.5%": {
+      "mean_recall": 1.0,
+      "count": 26
+    },
+    "0.5-1%": {
+      "mean_recall": 1.0,
+      "count": 70
+    },
+    "1-2%": {
+      "mean_recall": 1.0,
+      "count": 295
+    },
+    "2-3%": {
+      "mean_recall": 1.0,
+      "count": 165
+    },
+    "3-5%": {
+      "mean_recall": 1.0,
+      "count": 285
+    },
+    "5-10%": {
+      "mean_recall": 1.0,
+      "count": 100
+    },
+    "10-20%": {
+      "mean_recall": 1.0,
+      "count": 35
+    }
+  }
+}
