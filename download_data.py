@@ -24,8 +24,8 @@ def main():
     parser.add_argument(
         "--split",
         choices=["small", "medium"],
-        default="small",
-        help="Dataset split to download (default: small)",
+        default="medium",
+        help="Dataset split to download (default: medium)",
     )
     args = parser.parse_args()
 

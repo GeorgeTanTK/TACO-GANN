@@ -26,6 +26,7 @@ import sys
 import time
 import numpy as np
 import hnswlib
+import pickle
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
@@ -62,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description="TANNS-C Baseline Evaluation")
     parser.add_argument("--data-dir", default=os.path.join(REPO_ROOT, "data"),
                         help="Directory containing dataset files")
-    parser.add_argument("--n-queries", type=int, default=1000)
+    parser.add_argument("--n-queries", type=int, default=5000)
     parser.add_argument("--output-dir", default=os.path.join(REPO_ROOT, "results"),
                         help="Output directory for results")
     parser.add_argument("--seed", type=int, default=42)
@@ -74,200 +75,230 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    state_path = os.path.join(args.output_dir, "_state.pkl")
+    if os.path.exists(state_path):
+        logger.info(f"Loading precomputed state from {state_path}...")
+        with open(state_path, "rb") as f:
+            state = pickle.load(f)
+        V   = state["V"]
+        Vn  = state["Vn"]
+        Q   = state["Q"]
+        Qn  = state["Qn"]
+        Ms  = state["Ms"]   # rename to masks below
+        gt  = state["gt"]
+        N, D = state["N"], state["D"]
+        NQ   = state["NQ"]
+        masks = Ms
+        # Skip data loading, normalization, query gen, and GT computation
+        skip_setup = True
+    else:
+        logger.info("No _state.pkl found; will compute from scratch.")
+        skip_setup = False
+
     NQ = args.n_queries
     CHUNK = args.chunk_size
     EFS = [2, 5, 10, 20, 50]
+    if not skip_setup:
 
-    # ── Load data ────────────────────────────────────────────────────
-    data_dir = args.data_dir
+        # ── Load data ────────────────────────────────────────────────────
+        data_dir = args.data_dir
 
-    # Auto-detect: try small split first, then medium
-    for vec_name in ["database_vectors_small.fvecs", "database_vectors.fvecs"]:
-        vec_path = os.path.join(data_dir, vec_name)
-        if os.path.exists(vec_path):
-            break
-    for attr_name in ["database_attributes_small.jsonl", "database_attributes.jsonl"]:
-        attr_path = os.path.join(data_dir, attr_name)
-        if os.path.exists(attr_path):
-            break
+        # Auto-detect: try small split first, then medium
+        for vec_name in ["database_vectors_small.fvecs", "database_vectors.fvecs"]:
+            vec_path = os.path.join(data_dir, vec_name)
+            if os.path.exists(vec_path):
+                break
+        for attr_name in ["database_attributes_small.jsonl", "database_attributes.jsonl"]:
+            attr_path = os.path.join(data_dir, attr_name)
+            if os.path.exists(attr_path):
+                break
 
-    logger.info(f"Loading vectors: {vec_path}")
-    V = load_fvecs(vec_path)
-    N, D = V.shape
-    logger.info(f"  {N:,} vectors × {D} dimensions")
+        logger.info(f"Loading vectors: {vec_path}")
+        V = load_fvecs(vec_path)
+        N, D = V.shape
+        logger.info(f"  {N:,} vectors × {D} dimensions")
 
-    logger.info(f"Loading metadata: {attr_path}")
-    categories, update_days = load_metadata(attr_path)
-    logger.info(f"  Year range: {epoch_day_to_year(update_days.min())} – "
-                f"{epoch_day_to_year(update_days.max())}")
+        logger.info(f"Loading metadata: {attr_path}")
+        categories, update_days = load_metadata(attr_path)
+        logger.info(f"  Year range: {epoch_day_to_year(update_days.min())} – "
+                    f"{epoch_day_to_year(update_days.max())}")
 
-    # Normalize for cosine similarity
-    norms = np.linalg.norm(V, axis=1, keepdims=True).clip(1e-10)
-    Vn = (V / norms).astype(np.float32)
+        # Normalize for cosine similarity
+        norms = np.linalg.norm(V, axis=1, keepdims=True).clip(1e-10)
+        Vn = (V / norms).astype(np.float32)
 
-    # Pre-build per-category boolean arrays
-    cat_masks = {c: np.array([c in categories[i] for i in range(N)], dtype=bool)
-                 for c in TOP10_CATEGORIES}
+        # Pre-build per-category boolean arrays
+        cat_masks = {}
+        for c in TOP10_CATEGORIES:
+            cat_masks[c] = np.array([c in cats for cats in categories], dtype=bool)
 
-    # ── Generate queries ─────────────────────────────────────────────
-    logger.info(f"Generating {NQ} queries...")
-    queries = generate_queries(V, categories, update_days, n_queries=NQ, seed=args.seed)
-    Q = np.stack([q["query_vector"] for q in queries]).astype(np.float32)
-    Qn = Q / np.linalg.norm(Q, axis=1, keepdims=True).clip(1e-10)
+        # ── Generate queries ─────────────────────────────────────────────
+        logger.info(f"Generating {NQ} queries...")
+        queries = generate_queries(V, categories, update_days, n_queries=NQ, seed=args.seed)
+        Q = np.stack([q["query_vector"] for q in queries]).astype(np.float32)
+        Qn = Q / np.linalg.norm(Q, axis=1, keepdims=True).clip(1e-10)
 
-    # Pre-compute filter masks (vectorized)
-    masks = [cat_masks[q["target_category"]] &
-             (update_days >= q["t_start"]) & (update_days <= q["t_end"])
-             for q in queries]
+        # Pre-compute filter masks (vectorized)
+        masks = [cat_masks[q["target_category"]] &
+                (update_days >= q["t_start"]) & (update_days <= q["t_end"])
+                for q in queries]
 
-    sel = [m.sum() for m in masks]
-    logger.info(f"  Filter selectivity: mean={np.mean(sel):.1f}, median={np.median(sel):.0f}, "
-                f"min={min(sel)}, max={max(sel)}")
+        sel = [m.sum() for m in masks]
+        logger.info(f"  Filter selectivity: mean={np.mean(sel):.1f}, median={np.median(sel):.0f}, "
+                    f"min={min(sel)}, max={max(sel)}")
 
-    # ── Ground truth ─────────────────────────────────────────────────
-    logger.info("Computing ground truth (brute-force)...")
-    gt = []
-    for qi in range(NQ):
-        fi = np.where(masks[qi])[0]
-        if len(fi) == 0:
-            gt.append(np.array([], dtype=np.int64))
-            continue
-        dists = 1.0 - Vn[fi] @ Qn[qi]
-        k = min(100, len(fi))
-        if k >= len(fi):
-            order = np.argsort(dists)
-        else:
-            order = np.argpartition(dists, k)[:k]
-            order = order[np.argsort(dists[order])]
-        gt.append(fi[order])
+        # ── Ground truth ─────────────────────────────────────────────────
+        logger.info("Computing ground truth (brute-force)...")
+        gt = []
+        for qi in range(NQ):
+            fi = np.where(masks[qi])[0]
+            if len(fi) == 0:
+                gt.append(np.array([], dtype=np.int64))
+                continue
+            dists = 1.0 - Vn[fi] @ Qn[qi]
+            k = min(100, len(fi))
+            if k >= len(fi):
+                order = np.argsort(dists)
+            else:
+                order = np.argpartition(dists, k)[:k]
+                order = order[np.argsort(dists[order])]
+            gt.append(fi[order])
 
-    empty = sum(1 for g in gt if len(g) == 0)
-    logger.info(f"  Empty queries (no matching vectors): {empty}/{NQ}")
+        empty = sum(1 for g in gt if len(g) == 0)
+        logger.info(f"  Empty queries (no matching vectors): {empty}/{NQ}")
 
-    # ── Build HNSW index ─────────────────────────────────────────────
-    logger.info(f"Building HNSW index (M={args.hnsw_M}, ef_c={args.hnsw_ef_construction})...")
-    t0 = time.time()
-    hnsw = hnswlib.Index(space="cosine", dim=D)
-    hnsw.init_index(max_elements=N, M=args.hnsw_M, ef_construction=args.hnsw_ef_construction)
-    hnsw.add_items(V, ids=np.arange(N))
-    logger.info(f"  Built in {time.time()-t0:.2f}s")
+        # ── Build HNSW index ─────────────────────────────────────────────
+        logger.info(f"Building HNSW index (M={args.hnsw_M}, ef_c={args.hnsw_ef_construction})...")
+        t0 = time.time()
+        hnsw = hnswlib.Index(space="cosine", dim=D)
+        hnsw.init_index(max_elements=N, M=args.hnsw_M, ef_construction=args.hnsw_ef_construction)
+        hnsw.add_items(V, ids=np.arange(N))
+        logger.info(f"  Built in {time.time()-t0:.2f}s")
 
-    # ── Evaluate PostFilter ──────────────────────────────────────────
-    logger.info("--- PostFilter-HNSW ---")
-    results = []
+        # ── Evaluate PostFilter ──────────────────────────────────────────
+        logger.info("--- PostFilter-HNSW ---")
+        results = []
 
-    for ef in EFS:
-        k10e = min(10 * ef, N)
+        for ef in EFS:
+            k10e = min(10 * ef, N)
 
-        # k=10 retrieval pass (chunked batch)
-        r10_all = []
-        t_total = 0
-        hnsw.set_ef(max(k10e, 50))
-        for s in range(0, NQ, CHUNK):
-            e = min(s + CHUNK, NQ)
-            t0 = time.perf_counter()
-            labels, _ = hnsw.knn_query(Q[s:e], k=k10e)
-            t_total += time.perf_counter() - t0
-            for i, qi in enumerate(range(s, e)):
-                keep = [int(x) for x in labels[i] if masks[qi][int(x)]][:10]
-                r10_all.append(np.array(keep, dtype=np.int64))
-
-        # recall@100: if 100*ef >= N, post-filter gets all vectors → perfect recall
-        if 100 * ef >= N:
-            r100_val = 1.0
-        else:
-            k100e = 100 * ef
-            r100_all = []
-            hnsw.set_ef(max(k100e, 50))
+            # ── Recall@10 pass (timed) ──
+            r10_all = []
+            t_total_10 = 0
+            hnsw.set_ef(max(k10e, 50))
             for s in range(0, NQ, CHUNK):
                 e = min(s + CHUNK, NQ)
-                labels, _ = hnsw.knn_query(Q[s:e], k=k100e)
+                t0 = time.perf_counter()
+                labels, _ = hnsw.knn_query(Q[s:e], k=k10e)
+                t_total_10 += time.perf_counter() - t0
                 for i, qi in enumerate(range(s, e)):
-                    keep = [int(x) for x in labels[i] if masks[qi][int(x)]][:100]
-                    r100_all.append(np.array(keep, dtype=np.int64))
-            r100_val = recall_at_k(r100_all, gt, 100)
+                    keep = [int(x) for x in labels[i] if masks[qi][int(x)]][:10]
+                    r10_all.append(np.array(keep, dtype=np.int64))
 
-        r10_val = recall_at_k(r10_all, gt, 10)
-        qps = NQ / t_total
-        lat = t_total / NQ * 1000
+            # ── Recall@100 pass (separately timed) ──
+            if 100 * ef >= N:
+                r100_val = 1.0
+                t_total_100 = t_total_10  # same pass would suffice
+            else:
+                k100e = 100 * ef
+                r100_all = []
+                t_total_100 = 0
+                hnsw.set_ef(max(k100e, 50))
+                for s in range(0, NQ, CHUNK):
+                    e = min(s + CHUNK, NQ)
+                    t0 = time.perf_counter()
+                    labels, _ = hnsw.knn_query(Q[s:e], k=k100e)
+                    t_total_100 += time.perf_counter() - t0
+                    for i, qi in enumerate(range(s, e)):
+                        keep = [int(x) for x in labels[i] if masks[qi][int(x)]][:100]
+                        r100_all.append(np.array(keep, dtype=np.int64))
+                r100_val = recall_at_k(r100_all, gt, 100)
+
+            r10_val = recall_at_k(r10_all, gt, 10)
+
+            # Report latency for k=10 pass (primary operating point)
+            qps = NQ / t_total_10
+            lat = t_total_10 / NQ * 1000
+
+            results.append({
+                "method": "PostFilter-HNSW",
+                "expansion_factor": ef,
+                "recall@10": round(r10_val, 4),
+                "recall@100": round(r100_val, 4),
+                "QPS": round(qps, 1),
+                "latency_ms": round(lat, 2),
+                "latency_ms_k100": round(t_total_100 / NQ * 1000, 2),  # ← bonus: also save k100 latency
+            })
+            logger.info(f"  ef={ef:3d}: R@10={r10_val:.4f}  R@100={r100_val:.4f}  "
+                        f"QPS={qps:,.0f}  lat={lat:.2f}ms")
+
+        # ── Evaluate PreFilter ───────────────────────────────────────────
+        logger.info("--- PreFilter-BruteForce ---")
+        r10p, r100p = [], []
+        t_total = 0
+        for qi in range(NQ):
+            fi = np.where(masks[qi])[0]
+            if len(fi) == 0:
+                r10p.append(np.array([], dtype=np.int64))
+                r100p.append(np.array([], dtype=np.int64))
+                continue  # ← skip; don't count empty queries in timing
+            t0 = time.perf_counter()  # ← timer starts only for real work
+            dists = 1.0 - Vn[fi] @ Qn[qi]
+            k = min(100, len(fi))
+            if k >= len(fi):
+                order = np.argsort(dists)
+            else:
+                order = np.argpartition(dists, k)[:k]
+                order = order[np.argsort(dists[order])]
+            t_total += time.perf_counter() - t0
+            r100p.append(fi[order])
+            r10p.append(fi[order[:min(10, len(fi))]])
+
+        # Also fix QPS to exclude empty queries:
+        n_valid = sum(1 for g in gt if len(g) > 0)
+        qpsp = n_valid / t_total
+        latp = t_total / n_valid * 1000
+        r10pv = recall_at_k(r10p, gt, 10)
+        r100pv = recall_at_k(r100p, gt, 100)
 
         results.append({
-            "method": "PostFilter-HNSW",
-            "expansion_factor": ef,
-            "recall@10": round(r10_val, 4),
-            "recall@100": round(r100_val, 4),
-            "QPS": round(qps, 1),
-            "latency_ms": round(lat, 2),
+            "method": "PreFilter-BruteForce",
+            "expansion_factor": "N/A",
+            "recall@10": round(r10pv, 4),
+            "recall@100": round(r100pv, 4),
+            "QPS": round(qpsp, 1),
+            "latency_ms": round(latp, 2),
         })
-        logger.info(f"  ef={ef:3d}: R@10={r10_val:.4f}  R@100={r100_val:.4f}  "
-                     f"QPS={qps:,.0f}  lat={lat:.2f}ms")
+        logger.info(f"  R@10={r10pv:.4f}  R@100={r100pv:.4f}  "
+                    f"QPS={qpsp:,.0f}  lat={latp:.2f}ms")
 
-    # ── Evaluate PreFilter ───────────────────────────────────────────
-    logger.info("--- PreFilter-BruteForce ---")
-    r10p, r100p = [], []
-    t_total = 0
-    for qi in range(NQ):
-        fi = np.where(masks[qi])[0]
-        t0 = time.perf_counter()
-        if len(fi) == 0:
-            r10p.append(np.array([], dtype=np.int64))
-            r100p.append(np.array([], dtype=np.int64))
-            t_total += time.perf_counter() - t0
-            continue
-        dists = 1.0 - Vn[fi] @ Qn[qi]
-        k = min(100, len(fi))
-        if k >= len(fi):
-            order = np.argsort(dists)
-        else:
-            order = np.argpartition(dists, k)[:k]
-            order = order[np.argsort(dists[order])]
-        t_total += time.perf_counter() - t0
-        r100p.append(fi[order])
-        r10p.append(fi[order[:min(10, len(fi))]])
+        # ── Save results ─────────────────────────────────────────────────
+        csv_path = os.path.join(args.output_dir, "baseline_results.csv")
+        json_path = os.path.join(args.output_dir, "baseline_results.json")
 
-    r10pv = recall_at_k(r10p, gt, 10)
-    r100pv = recall_at_k(r100p, gt, 100)
-    qpsp = NQ / t_total
-    latp = t_total / NQ * 1000
+        with open(csv_path, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=[
+                "method", "expansion_factor", "recall@10", "recall@100", "QPS", "latency_ms"
+            ])
+            w.writeheader()
+            for r in results:
+                w.writerow(r)
 
-    results.append({
-        "method": "PreFilter-BruteForce",
-        "expansion_factor": "N/A",
-        "recall@10": round(r10pv, 4),
-        "recall@100": round(r100pv, 4),
-        "QPS": round(qpsp, 1),
-        "latency_ms": round(latp, 2),
-    })
-    logger.info(f"  R@10={r10pv:.4f}  R@100={r100pv:.4f}  "
-                f"QPS={qpsp:,.0f}  lat={latp:.2f}ms")
+        with open(json_path, "w") as f:
+            json.dump(results, f, indent=2)
 
-    # ── Save results ─────────────────────────────────────────────────
-    csv_path = os.path.join(args.output_dir, "baseline_results.csv")
-    json_path = os.path.join(args.output_dir, "baseline_results.json")
-
-    with open(csv_path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=[
-            "method", "expansion_factor", "recall@10", "recall@100", "QPS", "latency_ms"
-        ])
-        w.writeheader()
+        # ── Summary ──────────────────────────────────────────────────────
+        logger.info(f"\n{'=' * 72}")
+        logger.info(f"  Dataset: N={N:,}, D={D}, Queries={NQ}")
+        logger.info(f"  {'Method':<25} {'EF':>5} {'R@10':>8} {'R@100':>8} {'QPS':>10} {'Lat(ms)':>10}")
+        logger.info(f"  {'─' * 67}")
         for r in results:
-            w.writerow(r)
-
-    with open(json_path, "w") as f:
-        json.dump(results, f, indent=2)
-
-    # ── Summary ──────────────────────────────────────────────────────
-    logger.info(f"\n{'=' * 72}")
-    logger.info(f"  Dataset: N={N:,}, D={D}, Queries={NQ}")
-    logger.info(f"  {'Method':<25} {'EF':>5} {'R@10':>8} {'R@100':>8} {'QPS':>10} {'Lat(ms)':>10}")
-    logger.info(f"  {'─' * 67}")
-    for r in results:
-        logger.info(f"  {r['method']:<25} {str(r['expansion_factor']):>5} "
-              f"{r['recall@10']:>8.4f} {r['recall@100']:>8.4f} "
-              f"{r['QPS']:>10.1f} {r['latency_ms']:>10.2f}")
-    logger.info(f"{'=' * 72}")
-    logger.info(f"  Results: {csv_path}")
-    logger.info(f"           {json_path}")
+            logger.info(f"  {r['method']:<25} {str(r['expansion_factor']):>5} "
+                f"{r['recall@10']:>8.4f} {r['recall@100']:>8.4f} "
+                f"{r['QPS']:>10.1f} {r['latency_ms']:>10.2f}")
+        logger.info(f"{'=' * 72}")
+        logger.info(f"  Results: {csv_path}")
+        logger.info(f"           {json_path}")
 
 
 if __name__ == "__main__":

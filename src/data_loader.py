@@ -37,21 +37,21 @@ def load_fvecs(path: str) -> np.ndarray:
     All vectors share the same dimensionality.
     """
     file_size = os.path.getsize(path)
+
     with open(path, "rb") as f:
         dim = struct.unpack("i", f.read(4))[0]
 
     vec_bytes = 4 + dim * 4  # 4 bytes for dim + dim*4 bytes for data
     n_vecs = file_size // vec_bytes
 
-    vectors = np.zeros((n_vecs, dim), dtype=np.float32)
+    # Build structured dtype: [int32 dim_header | float32 x dim]
+    dtype = np.dtype([("dim", np.int32), ("data", np.float32, dim)])
+    raw = np.fromfile(path, dtype=dtype)
 
-    with open(path, "rb") as f:
-        for i in range(n_vecs):
-            d = struct.unpack("i", f.read(4))[0]
-            assert d == dim, f"Dimension mismatch at vector {i}: expected {dim}, got {d}"
-            vectors[i] = np.frombuffer(f.read(dim * 4), dtype=np.float32)
+    assert len(raw) == n_vecs, f"Expected {n_vecs} vectors, got {len(raw)}"
+    assert (raw["dim"] == dim).all(), "Dimension mismatch in file"
 
-    return vectors
+    return np.ascontiguousarray(raw["data"])  # shape (N, D), float32
 
 
 # ── Metadata loader ──────────────────────────────────────────────────
@@ -75,7 +75,12 @@ def load_metadata(path: str) -> Tuple[List[List[str]], np.ndarray]:
             categories.append(rec["main_categories"])
             update_days.append(rec["update_date"])
 
-    return categories, np.array(update_days, dtype=np.int32)
+    days_arr = np.array(update_days, dtype=np.int64)
+    assert days_arr.max() < 100_000, (
+        "update_date values look like Unix seconds, not epoch days. "
+        "Check your JSONL — expected values < 100,000 (days since 1970)."
+    )
+    return categories, days_arr
 
 
 def epoch_day_to_year(day: int) -> int:
@@ -166,19 +171,19 @@ def build_filter_mask(
     t_end: int,
 ) -> np.ndarray:
     """
-    Build a boolean mask over the database: True if paper matches
-    the target category AND falls within [t_start, t_end].
-
-    Returns: np.ndarray of bool, shape (N,)
+    Build a boolean mask: True if paper matches target_category AND [t_start, t_end].
+    Vectorized for performance over large N.
     """
-    N = len(categories)
-    mask = np.zeros(N, dtype=bool)
+    # Time filter: fully vectorized
+    time_mask = (update_days >= t_start) & (update_days <= t_end)
 
-    for i in range(N):
-        if (t_start <= update_days[i] <= t_end) and (target_category in categories[i]):
-            mask[i] = True
+    # Category filter: vectorized using list comprehension (categories is List[List[str]])
+    cat_mask = np.array(
+        [target_category in cats_i for cats_i in categories], dtype=bool
+    )
 
-    return mask
+    return time_mask & cat_mask
+
 
 
 # ── CLI test ─────────────────────────────────────────────────────────
