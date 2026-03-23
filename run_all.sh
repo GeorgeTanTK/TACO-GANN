@@ -27,7 +27,7 @@ echo ""
 # Step 1 — Download dataset
 if [ "$SKIP_DOWNLOAD" = false ]; then
   echo "[1/6] Downloading arxiv-for-FANNS dataset..."
-  python download_data.py --output-dir "$DATA_DIR"
+  python download_data.py --out-dir "$DATA_DIR"
 else
   echo "[1/6] Skipping download (--skip-download)"
 fi

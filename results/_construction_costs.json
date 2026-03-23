@@ -1,22 +1,22 @@
 {
   "PostFilter": {
-    "build_time_s": 0.604,
-    "peak_mem_mb": 0.02
+    "build_time_s": 422.612,
+    "peak_mem_mb": 1.53
   },
   "ACORN-1": {
-    "build_time_s": 1.057,
-    "peak_mem_mb": 31.32
+    "build_time_s": 251.489,
+    "peak_mem_mb": 3125.44
   },
   "TANNS+Post": {
-    "build_time_s": 0.132,
-    "peak_mem_mb": 32.73
+    "build_time_s": 100.116,
+    "peak_mem_mb": 3289.0
   },
   "FDiskANN+Post": {
-    "build_time_s": 0.406,
-    "peak_mem_mb": 35.43
+    "build_time_s": 130.228,
+    "peak_mem_mb": 3495.32
   },
   "TANNS-C": {
-    "build_time_s": 2.09,
-    "peak_mem_mb": 31.29
+    "build_time_s": 635.543,
+    "peak_mem_mb": 3125.42
   }
 }
