@@ -21,6 +21,8 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
 
 from src.data_loader import load_fvecs, load_metadata, TOP10_CATEGORIES
+from src.baselines.tanns_post_filtering import TANNS
+from src.tanns_c import TANNSC
 
 logger = logging.getLogger(__name__)
 
@@ -66,48 +68,51 @@ def main():
     results["PostFilter"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
     del hnsw
 
-    # 2. ACORN-1 (HNSW + adjacency extraction)
-    logger.info("Building ACORN-1...")
-    tracemalloc.start()
-    t0 = time.time()
-    from src.baselines.acorn1 import ACORN1Baseline
-    acorn = ACORN1Baseline(V, cats, udays)
-    build_time = time.time() - t0
-    _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    results["ACORN-1"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
-    del acorn
+    # # 2. ACORN-1 (HNSW + adjacency extraction)
+    # logger.info("Building ACORN-1...")
+    # tracemalloc.start()
+    # t0 = time.time()
+    # from src.baselines.acorn1 import ACORN1Baseline
+    # acorn = ACORN1Baseline(V, cats, udays)
+    # build_time = time.time() - t0
+    # _, peak = tracemalloc.get_traced_memory()
+    # tracemalloc.stop()
+    # results["ACORN-1"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
+    # del acorn
 
-    # 3. TANNS (per-year HNSW)
+    # 3. TANNS+Post filtering
     logger.info("Building TANNS...")
     tracemalloc.start()
     t0 = time.time()
-    from src.baselines.tanns import TimestampGraphBaseline
-    tanns = TimestampGraphBaseline(V, cats, udays)
+    tanns = TANNS()
+    tanns.build(V, cats, udays)          # V: np.ndarray, cats: List[Set[str]], udays: List[int]
     build_time = time.time() - t0
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-    results["TANNS+Post"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
+    results["TANNS+Post"] = {
+        "build_time_s": round(build_time, 3),
+        "peak_mem_mb": round(peak / 1024**2, 2),
+    }
     del tanns
 
-    # 4. FDiskANN (per-category HNSW)
-    logger.info("Building FDiskANN...")
-    tracemalloc.start()
-    t0 = time.time()
-    from src.baselines.filtered_diskann import FilteredDiskANNBaseline
-    fdann = FilteredDiskANNBaseline(V, cats, udays, TOP10_CATEGORIES)
-    build_time = time.time() - t0
-    _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    results["FDiskANN+Post"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
-    del fdann
+    # # 4. FDiskANN (per-category HNSW)
+    # logger.info("Building FDiskANN...")
+    # tracemalloc.start()
+    # t0 = time.time()
+    # from src.baselines.filtered_diskann import FilteredDiskANNBaseline
+    # fdann = FilteredDiskANNBaseline(V, cats, udays, TOP10_CATEGORIES)
+    # build_time = time.time() - t0
+    # _, peak = tracemalloc.get_traced_memory()
+    # tracemalloc.stop()
+    # results["FDiskANN+Post"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
+    # del fdann
 
     # 5. TANNS-C (category-aware graph + snapshots)
     logger.info("Building TANNS-C...")
     tracemalloc.start()
     t0 = time.time()
-    from src.tanns_c import TANNSC
-    tannsc = TANNSC(V, cats, udays, TOP10_CATEGORIES)
+    tannsc = TANNSC()
+    tannsc.build(V, cats, udays)
     build_time = time.time() - t0
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()

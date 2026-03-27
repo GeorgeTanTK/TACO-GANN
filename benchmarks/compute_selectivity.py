@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 """
-compute_selectivity.py — Compute per-selectivity-bin recall for Figure 5.
+compute_selectivity.py — Per-selectivity-bin recall for TANNS-C baselines.
 
-Bins queries by filter selectivity (% of dataset matching), then computes
-recall@10 for each method within each bin.
+Methods:
+  - PostFilter-HNSW: HNSW over all vectors + dual post-filter (category AND time)
+  - TANNS+Post:      TANNS timestamp graph + category post-filter
+  - TANNS-C:         Full TANNS-C (category-aware + temporal HNT)
+
+Bins queries by filter selectivity (% of dataset matching C × [t_start,t_end]),
+then computes recall@10 for each method within each bin.
+
+Prerequisite:
+  - results/_state.pkl must exist, containing at least:
+      gt      : list/array of ground-truth ids per query
+      Ms      : list/array of boolean masks (N) per query for C × [t_start,t_end]
+      Vn, Qn  : normalized vectors (optional; used only for brute-force baseline)
+      N, NQ   : corpus size and number of queries
 
 Usage:
-    python benchmarks/compute_selectivity.py
-    python benchmarks/compute_selectivity.py --data-dir data/ --results-dir results/
+  python benchmarks/compute_selectivity.py
+  python benchmarks/compute_selectivity.py --data-dir data --results-dir results
 """
 
 import argparse
@@ -17,25 +29,24 @@ import os
 import pickle
 import sys
 import time
+
 import numpy as np
 import hnswlib
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
 
-from src.data_loader import load_fvecs, load_metadata, generate_queries, TOP10_CATEGORIES
-from src.baselines.acorn1 import ACORN1Baseline
-from src.baselines.tanns import TimestampGraphBaseline
-from src.baselines.filtered_diskann import FilteredDiskANNBaseline
+from src.data_loader import load_fvecs, load_metadata, generate_queries
+from src.baselines.tanns_post_filtering import TANNS
 from src.tanns_c import TANNSC
 
 logger = logging.getLogger(__name__)
 
 
-def recall_at_k_single(retrieved, gt_arr, k):
+def recall_at_k_single(retrieved, gt_arr, k=10):
     """Compute recall@k for a single query. Returns None if GT is empty."""
     if len(gt_arr) == 0:
-        return None  # skip
+        return None
     gt_topk = set(int(x) for x in gt_arr[:k])
     ret_topk = set(int(x) for x in retrieved[:k])
     denom = min(k, len(gt_topk))
@@ -43,13 +54,42 @@ def recall_at_k_single(retrieved, gt_arr, k):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
-    parser = argparse.ArgumentParser(description="Compute per-selectivity-bin recall")
-    parser.add_argument("--data-dir", default=os.path.join(REPO_ROOT, "data"),
-                        help="Directory containing dataset files")
-    parser.add_argument("--results-dir", default=os.path.join(REPO_ROOT, "results"),
-                        help="Directory with _state.pkl and for output")
+    parser = argparse.ArgumentParser(
+        description="Compute per-selectivity-bin recall for TANNS-C baselines"
+    )
+    parser.add_argument(
+        "--data-dir",
+        default=os.path.join(REPO_ROOT, "data"),
+        help="Directory containing dataset files",
+    )
+    parser.add_argument(
+        "--results-dir",
+        default=os.path.join(REPO_ROOT, "results"),
+        help="Directory with _state.pkl and for output",
+    )
+    parser.add_argument(
+        "--ef-postfilter",
+        type=int,
+        default=50,
+        help="ef_search for HNSW PostFilter baseline",
+    )
+    parser.add_argument(
+        "--ef-tanns",
+        type=int,
+        default=200,
+        help="ef_search for TANNS+Post baseline",
+    )
+    parser.add_argument(
+        "--ef-tannsc",
+        type=int,
+        default=200,
+        help="ef_search for TANNS-C baseline",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.results_dir, exist_ok=True)
@@ -59,15 +99,14 @@ def main():
     logger.info(f"Loading state from {state_path}")
     with open(state_path, "rb") as f:
         state = pickle.load(f)
-    gt = state["gt"]
-    Ms = state["Ms"]
-    Vn = state["Vn"]
-    Qn = state["Qn"]
+
+    gt = state["gt"]        # list/array of ground-truth ids per query
+    Ms = state["Ms"]        # boolean masks per query (N,)
     N = state["N"]
     NQ = state["NQ"]
 
-    # ── Load data for methods that need re-evaluation per bin ────────
-    # Auto-detect: try small split first, then medium
+    # ── Load data ────────────────────────────────────────────────────
+    # Auto-detect: try small split first, then full
     for vec_name in ["database_vectors_small.fvecs", "database_vectors.fvecs"]:
         vec_path = os.path.join(args.data_dir, vec_name)
         if os.path.exists(vec_path):
@@ -77,112 +116,98 @@ def main():
         if os.path.exists(attr_path):
             break
 
+    logger.info(f"Loading dataset from {args.data_dir}")
     V = load_fvecs(vec_path)
     cats, udays = load_metadata(attr_path)
     queries = generate_queries(V, cats, udays, n_queries=NQ, seed=42)
 
+    assert V.shape[0] == N, f"V.shape[0]={V.shape[0]} but N={N}"
+
     # ── Compute per-query selectivity ────────────────────────────────
+    # |valid_set_q| = Ms[q].sum(), selectivity as percentage of dataset
     selectivities = np.array([int(m.sum()) for m in Ms])
-    selectivity_pct = selectivities / N * 100  # as percentage
+    selectivity_pct = selectivities / N * 100.0
 
     # Define bins (percentage of dataset)
     bin_edges = [0, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 20.0]
     bin_labels = ["<0.5%", "0.5-1%", "1-2%", "2-3%", "3-5%", "5-10%", "10-20%"]
-
-    # Assign each query to a bin
     query_bins = np.digitize(selectivity_pct, bin_edges) - 1  # 0-indexed
 
     # ── Build indices ────────────────────────────────────────────────
     logger.info("Building indices...")
 
-    # 1. PostFilter-HNSW
+    # 1. PostFilter-HNSW (no metadata awareness, dual post-filter)
     hnsw = hnswlib.Index(space="cosine", dim=V.shape[1])
     hnsw.init_index(max_elements=N, M=32, ef_construction=200)
     hnsw.add_items(V, ids=np.arange(N))
 
-    # 2. ACORN-1
-    acorn = ACORN1Baseline(V, cats, udays)
+    # 2. TANNS (timestamp graph, category as post-filter)
+    tanns = TANNS()
+    tanns.build(V, cats, udays)
 
-    # 3. TANNS baseline
-    tanns = TimestampGraphBaseline(V, cats, udays)
+    # 3. TANNS-C (full temporal + category-aware)
+    tannsc = TANNSC()
+    tannsc.build(V, cats, udays)
 
-    # 4. FDiskANN
-    fdann = FilteredDiskANNBaseline(V, cats, udays, TOP10_CATEGORIES)
+    # ── Evaluate per query ───────────────────────────────────────────
+    methods = ["PostFilter", "TANNS+Post", "TANNS-C"]
+    per_query_recall = {m: [None] * NQ for m in methods}
 
-    # 5. TANNS-C
-    tannsc = TANNSC(V, cats, udays, TOP10_CATEGORIES)
-
-    # ── Evaluate each method per query ───────────────────────────────
     logger.info("Running per-query evaluation...")
-
-    methods_config = {
-        "PostFilter": {"ef": 50},
-        "ACORN-1": {"ef": 200},
-        "TANNS+Post": {"ef": 200},
-        "FDiskANN+Post": {"ef": 200},
-        "TANNS-C": {"ef": 200},
-        "PreFilter": {},
-    }
-
-    per_query_recall = {m: [None]*NQ for m in methods_config}
+    t0 = time.perf_counter()
 
     for qi in range(NQ):
         q = queries[qi]
         qv = q["query_vector"]
         cat = q["target_category"]
         ts, te = q["t_start"], q["t_end"]
+        mask = Ms[qi]
 
         if len(gt[qi]) == 0:
             continue
 
-        # PostFilter ef=50
-        k10e = min(10 * 50, N)
-        hnsw.set_ef(max(k10e, 50))
+        # 1) PostFilter-HNSW
+        #   - search k' = 10 * ef (clipped at N)
+        #   - then filter candidates by Ms[qi]
+        k10e = min(10 * args.ef_postfilter, N)
+        hnsw.set_ef(max(k10e, args.ef_postfilter))
         labels, _ = hnsw.knn_query(qv.reshape(1, -1), k=k10e)
-        keep = [int(x) for x in labels[0] if Ms[qi][int(x)]][:10]
-        per_query_recall["PostFilter"][qi] = recall_at_k_single(keep, gt[qi], 10)
+        filtered = [int(x) for x in labels[0] if mask[int(x)]][:10]
+        per_query_recall["PostFilter"][qi] = recall_at_k_single(filtered, gt[qi], 10)
 
-        # PreFilter (brute force)
-        fi = np.where(Ms[qi])[0]
-        if len(fi) > 0:
-            dists = 1.0 - Vn[fi] @ Qn[qi]
-            k = min(10, len(fi))
-            order = np.argsort(dists)[:k]
-            per_query_recall["PreFilter"][qi] = recall_at_k_single(fi[order], gt[qi], 10)
-        else:
-            per_query_recall["PreFilter"][qi] = None
-
-        # ACORN-1 ef=200
-        ids_a, _ = acorn.query(qv, cat, ts, te, k=10, ef_search=200)
-        per_query_recall["ACORN-1"][qi] = recall_at_k_single(ids_a, gt[qi], 10)
-
-        # TANNS+PostFilter ef=200
-        ids_t = tanns.query_postfilter(qv, cat, ts, te, k=10, ef_search=200)
+        # 2) TANNS + post-filter
+        ids_t, _visited_t = tanns.query(
+            qv, cat, ts, k=10, ef=args.ef_tanns
+        )  # TANNS already does category+time + post-filter
         per_query_recall["TANNS+Post"][qi] = recall_at_k_single(ids_t, gt[qi], 10)
 
-        # FDiskANN+PostFilter ef=200
-        ids_f = fdann.query_postfilter(qv, cat, ts, te, k=10, ef_search=200)
-        per_query_recall["FDiskANN+Post"][qi] = recall_at_k_single(ids_f, gt[qi], 10)
-
-        # TANNS-C ef=200
-        ids_c = tannsc.query(qv, cat, ts, te, k=10, ef_search=200, mode="full")
+        # 3) TANNS-C
+        ids_c, _visited_c = tannsc.query(
+            qv, cat, ts, te, k=10, ef=args.ef_tannsc
+        )
         per_query_recall["TANNS-C"][qi] = recall_at_k_single(ids_c, gt[qi], 10)
 
-        if qi % 100 == 0:
-            logger.info(f"  processed {qi}/{NQ}")
+        if qi % 200 == 0:
+            logger.info(f" processed {qi}/{NQ}")
 
-    # ── Bin results ──────────────────────────────────────────────────
-    logger.info("Binning results...")
+    total_time = time.perf_counter() - t0
+    logger.info(f"Finished evaluation of {NQ} queries in {total_time:.2f}s")
 
-    results = {}
-    for method in methods_config:
-        results[method] = {}
-        for bin_idx in range(len(bin_labels)):
-            query_indices = np.where(query_bins == bin_idx)[0]
-            recalls = [per_query_recall[method][qi] for qi in query_indices
-                       if per_query_recall[method][qi] is not None]
+    # ── Bin results and aggregate ────────────────────────────────────
+    logger.info("Binning results by selectivity...")
+
+    results = {m: {} for m in methods}
+
+    for bin_idx in range(len(bin_labels)):
+        q_idx = np.where(query_bins == bin_idx)[0]
+        for m in methods:
+            recalls = [
+                per_query_recall[m][qi]
+                for qi in q_idx
+                if per_query_recall[m][qi] is not None
+            ]
             if len(recalls) > 0:
-                results[method][bin_labels[bin_idx]] = {
+                results[m][bin_labels[bin_idx]] = {
                     "mean_recall": round(float(np.mean(recalls)), 4),
                     "count": len(recalls),
                 }
@@ -190,16 +215,24 @@ def main():
     # ── Save ─────────────────────────────────────────────────────────
     out_path = os.path.join(args.results_dir, "_selectivity_recall.json")
     with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(
+            {
+                "bins": bin_labels,
+                "methods": methods,
+                "results": results,
+            },
+            f,
+            indent=2,
+        )
 
-    logger.info(f"Saved to {out_path}")
+    logger.info(f"Saved per-selectivity recall to {out_path}")
 
-    # ── Print summary ────────────────────────────────────────────────
-    header = f"{'Bin':<10}" + "".join(f"{m:>15}" for m in methods_config)
-    logger.info(f"\n{header}")
+    # ── Print summary table ─────────────────────────────────────────
+    header = f"{'Bin':<10}" + "".join(f"{m:>15}" for m in methods)
+    logger.info("\n" + header)
     for bl in bin_labels:
         row = f"{bl:<10}"
-        for m in methods_config:
+        for m in methods:
             if bl in results[m]:
                 row += f"{results[m][bl]['mean_recall']:>15.4f}"
             else:

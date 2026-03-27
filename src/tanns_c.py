@@ -756,7 +756,7 @@ class TANNSC:
     # Build
     # ------------------------------------------------------------------
 
-    def build(self, vectors: np.ndarray, cat_sets_list: List[Set[str]],
+    def build(self, vectors: np.ndarray, cat_sets_list: List[List[str]],
               start_days_list: List[int]):
         """Build index by inserting all nodes in chronological order.
 
@@ -772,7 +772,8 @@ class TANNSC:
         order = sorted(range(n), key=lambda i: start_days_list[i])
 
         for count, idx in enumerate(order):
-            self.insert(vectors[idx], cat_sets_list[idx], start_days_list[idx])
+            cats = set(cat_sets_list[idx])
+            self.insert(vectors[idx], cats, start_days_list[idx])
             if (count + 1) % 10000 == 0:
                 print(f"  Inserted {count + 1}/{n} nodes")
 

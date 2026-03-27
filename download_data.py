@@ -13,7 +13,6 @@ import sys
 import logging
 logger = logging.getLogger(__name__)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Download arxiv-for-FANNS dataset")
     parser.add_argument(
@@ -24,8 +23,8 @@ def main():
     parser.add_argument(
         "--split",
         choices=["small", "medium"],
-        default="medium",
-        help="Dataset split to download (default: medium)",
+        default="small",
+        help="Dataset split to download (default: small)",
     )
     args = parser.parse_args()
 
@@ -37,12 +36,18 @@ def main():
         logger.info("ERROR: huggingface_hub not installed. Run: pip install huggingface-hub")
         sys.exit(1)
 
-    repo_id = "SPCL/arxiv-for-fanns-medium"
-    suffix = "_small" if args.split == "small" else ""
+    if args.split == "small":
+        repo_id = "SPCL/arxiv-for-fanns-small"
+    elif args.split == "medium":
+        repo_id = "SPCL/arxiv-for-fanns-medium"
+    else:
+        repo_id = "SPCL/arxiv-for-fanns-large"
+
+    repo_id = "SPCL/arxiv-for-fanns-small"
 
     files = [
-        f"database_vectors{suffix}.fvecs",
-        f"database_attributes{suffix}.jsonl",
+        "database_vectors.fvecs",
+        "database_attributes.jsonl",
     ]
 
     for filename in files:

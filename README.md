@@ -1,27 +1,17 @@
 # TANNS-C: Temporal- and Category-Aware Approximate Nearest Neighbour Search
 
-TANNS-C is a filtered approximate nearest neighbour (ANN) index that natively supports **temporal range** and **categorical** predicates.  It extends the HNSW graph with three structural pillars:
+TANNS‑C is a single‑graph approximate nearest neighbour (ANN) index that natively supports **temporal range** and **categorical** predicates on large vector datasets.
 
-1. **Category-Partitioned Sub-graphs (P1)** — one HNSW sub-graph per category, so filtered search never touches irrelevant vectors.
-2. **Temporal Edge Weighting (P2)** — edge weights encode recency, letting the greedy search favour temporally relevant neighbours.
-3. **Composite Scoring (P3)** — query-time scoring blends vector similarity with a temporal-decay factor, returning results that are both semantically close and temporally fresh.
+It combines:
 
-```
-┌───────────────────────────────────────────┐
-│               TANNS-C Index               │
-│                                           │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐   │
-│  │ Cat = ML │ │ Cat = CV │ │ Cat = NLP│   │
-│  │  (HNSW)  │ │  (HNSW)  │ │  (HNSW)  │   │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘   │
-│       │  temporal  │  temporal  │         │
-│       │  edge wts  │  edge wts  │         │
-│       ▼            ▼            ▼         │
-│  ┌─────────────────────────────────────┐  │
-│  │   Composite Score = α·sim + β·decay │  │
-│  └─────────────────────────────────────┘  │
-└───────────────────────────────────────────┘
-```
+- A **category-aware Filtered‑Vamana graph** (per‑label ST‑connectivity, medoid entry points, alpha‑blended neighbour scoring), and  
+- **Per‑node Historic Neighbour Tables (HNTs)** that reconstruct neighbours valid in a query time window.
+
+The target query is:
+
+> “Top‑k nearest neighbours of vector **q**, within category **C**, valid in time window **[t_start, t_end]**.”
+
+The reference dataset is **SPCL/arxiv‑for‑fanns‑medium** (100K ArXiv embeddings with subject categories and submission days)[cite:114].
 
 ---
 
@@ -30,10 +20,10 @@ TANNS-C is a filtered approximate nearest neighbour (ANN) index that natively su
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [Dataset](#dataset)
-- [Benchmark Results](#benchmark-results)
-- [Ablation Study](#ablation-study)
-- [Running Individual Steps](#running-individual-steps)
-- [Limitations](#limitations)
+- [Implemented Methods](#implemented-methods)
+- [Benchmark Pipeline](#benchmark-pipeline)
+- [Figures](#figures)
+- [Limitations and TODOs](#limitations-and-todos)
 - [Citation](#citation)
 - [License](#license)
 
@@ -43,60 +33,70 @@ TANNS-C is a filtered approximate nearest neighbour (ANN) index that natively su
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/<your-username>/tanns-c.git
+git clone https://github.com/georgetktan/tanns-c.git
 cd tanns-c
+python -m venv .venv
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
-# 2. Run the full pipeline (download → ground truth → baselines → figures)
-bash run_all.sh
+# 2. Download the SPCL/arxiv-for-fanns-medium dataset into data/
+python download_data.py --output-dir data
 
-# 3. Or skip the download if data/ is already populated
-bash run_all.sh --skip-download
+# 3. Run the full benchmark pipeline (ground truth → baselines → figs)
+bash run_all.sh
 ```
 
-Results are written to `results/` and publication figures to `figures/`.
+Results are written to `results/` and figures to `figures/`.
 
 ---
 
 ## Project Structure
 
-```
-tanns-c/
+```text
+TANNS-C/
 ├── run_all.sh                  # End-to-end pipeline script
-├── download_data.py            # Fetch arxiv-for-FANNS from HuggingFace
-├── requirements.txt            # Pinned dependencies
+├── download_data.py            # Fetch SPCL/arxiv-for-fanns-medium from HuggingFace
+├── requirements.txt            # Python dependencies
 ├── src/
-│   ├── data_loader.py          # Dataset loading, query generation
-│   ├── tanns_c.py              # TANNS-C index (all 3 pillars)
+│   ├── data_loader.py          # Dataset loading, metadata, query generation
+│   ├── tanns_c.py              # TANNS-C index (Filtered-Vamana + HNT)
 │   └── baselines/
-│       ├── postfilter.py       # HNSW + post-filter
-│       ├── prefilter.py        # Brute-force pre-filter
-│       ├── acorn1.py           # ACORN-1 (expanded graph)
-│       ├── tanns.py            # TANNS (2 variants)
-│       └── filtered_diskann.py # Filtered-DiskANN (2 variants)
+│       ├── postfilter.py       # HNSW + dual post-filter (category AND time)
+│       └── tanns_post_filtering.py
+│                               # TANNS implementation (ICDE'25 style)
 ├── benchmarks/
-│   ├── compute_ground_truth.py # Exact k-NN ground truth
-│   ├── evaluate_all.py         # Run all methods, log recall/QPS
-│   ├── run_ablation.py         # TANNS-C pillar ablation
-│   ├── compute_selectivity.py  # Per-selectivity-bin recall
-│   ├── measure_construction.py # Index build time/memory
-│   └── generate_figures.py     # 6 publication-quality figures
-├── results/                    # CSV / JSON outputs
-├── figures/                    # Generated PNG + PDF figures
+│   ├── compute_ground_truth.py # Exact k-NN ground truth for (C, [t_s, t_e]) queries
+│   ├── compute_selectivity.py  # Per-selectivity-bin recall for each method
+│   ├── measure_construction.py # Index build time / peak memory
+│   ├── run_baselines.py        # Run HNSW PostFilter, TANNS+Post, TANNS-C
+│   └── generate_figures.py     # Figures (PNG + PDF)
+├── results/                    # CSV / JSON outputs (created by scripts)
+├── figures/                    # Generated figures
 ├── docs/
-│   └── literature_matrix.md    # 22-paper survey of filtered ANN
-└── data/                       # Dataset (populated by download)
+│   └── TANNS-C-Design-Summary-and-Novelty-Brief.md
+│                               # Design + novelty write-up
+└── data/                       # Dataset files (populated by download)
 ```
 
 ---
 
 ## Dataset
 
-**arxiv-for-FANNS** (small split): 1,000 Specter-v2 embeddings (4,096-d) of arXiv papers spanning 2007–2024 across 40 CS categories.  Each vector carries a category label and an integer timestamp (epoch day).
+This repo benchmarks on the **SPCL/arxiv‑for‑fanns‑medium** dataset[cite:114]:
 
-The benchmark generates 1,000 queries, each with a random category filter and a temporal window drawn uniformly between 1 and 17 years.  Mean selectivity is ~3.05 %.
+- **100K** ArXiv papers with **4096‑dim** SPECTER‑style embeddings  
+- Per‑paper metadata:
+  - `categories`: subject area labels (e.g., `cs.AI`, `cs.CL`)[cite:114]
+  - `submission_day`: integer day index (temporal order)[cite:114]
+  - additional attributes (not all used yet)
 
-To download separately:
+TANNS‑C uses:
+
+- `database_vectors.fvecs` — database vectors (100K × 4096)  
+- `database_attributes.jsonl` — category sets and submission days per vector  
+- `query_vectors.fvecs` plus query attribute JSONL to define (C, [t_start, t_end]) workloads[cite:114][cite:115]
+
+To fetch the dataset:
 
 ```bash
 python download_data.py --output-dir data
@@ -104,90 +104,147 @@ python download_data.py --output-dir data
 
 ---
 
-## Benchmark Results
+## Implemented Methods
 
-All methods evaluated on the same 1,000-query workload with Recall@10 and queries per second (QPS).
+The current benchmark compares **three** methods:
 
-| Method | Best Recall@10 | QPS (at best R@10) | Build Time (s) |
-|---|---:|---:|---:|
-| PreFilter (brute-force) | 1.0000 | 9,685 | — |
-| TANNS + PostFilter (ef=100) | 1.0000 | 614 | 0.13 |
-| TANNS + PreFilter | 1.0000 | 2,579 | 0.13 |
-| FDiskANN + PostFilter (ef=500) | 1.0000 | 1,462 | 0.41 |
-| FDiskANN + PreFilter | 1.0000 | 2,003 | 0.41 |
-| **TANNS-C** (ef=200) | **0.9949** | **265** | **2.09** |
-| ACORN-1 (ef=1000) | 0.9929 | 120 | 1.06 |
-| PostFilter-HNSW (ef=50) | 0.8144 | 1,282 | 0.60 |
+| Internal name | Description |
+| --- | --- |
+| `PostFilter-HNSW` | Vanilla HNSW (no metadata). Search over all vectors, then post-filter by category and time window using a mask. |
+| `TANNS+Post` | Timestamp graph + HNT (ICDE'25 TANNS) with category applied as a post-filter at query time. |
+| `TANNS-C` | This work: single Filtered‑Vamana graph with per‑label ST‑connectivity, plus per‑node HNT for temporal reconstruction and structural category filtering at search time. |
 
-> **Note:** At N=1,000 the dataset is small enough for brute-force and simple baselines to dominate on both recall and QPS. TANNS-C's structural advantages (partitioned sub-graphs, temporal weighting) are expected to show clearer gains at larger scale (N ≥ 100 K).
+Older baselines (ACORN, Filtered‑DiskANN, ablative pillars P1/P2/P3) are **not** wired into this repo yet; the code focuses on a clean comparison between:
 
----
-
-## Ablation Study
-
-Contribution of each TANNS-C pillar (ef=200):
-
-| Variant | Recall@10 | QPS |
-|---|---:|---:|
-| P1 only (category partitions) | 0.9989 | 138 |
-| P2 only (temporal weighting) | 0.9926 | 250 |
-| P1 + P2 | 0.9926 | 256 |
-| **P1 + P2 + P3 (full)** | **0.9949** | **265** |
-
-P1 alone gives the largest recall boost; P3 (composite scoring) improves QPS by letting the search converge faster.
+- naïve filtered HNSW  
+- temporal‑only TANNS (category as post‑filter)  
+- fully temporal‑ and category‑aware TANNS‑C
 
 ---
 
-## Running Individual Steps
+## Benchmark Pipeline
 
-Each benchmark script supports `--data-dir` and `--output` flags:
+The recommended workflow mirrors the paper:
 
-```bash
-# Ground truth
-python -m benchmarks.compute_ground_truth --data-dir data
+1. **Ground truth for conjunctive queries**
 
-# Evaluate baselines
-python -m benchmarks.evaluate_all --data-dir data --output results/baseline_results.csv
+   ```bash
+   python benchmarks/compute_ground_truth.py \
+       --data-dir data \
+       --results-dir results
+   ```
 
-# Ablation
-python -m benchmarks.run_ablation --data-dir data --output results/baseline_results.csv
+   This computes exact top‑k under `(category C AND submission_day ∈ [t_start, t_end])` for each query and stores:
 
-# Selectivity analysis
-python -m benchmarks.compute_selectivity --data-dir data --output results/selectivity_recall.json
+   - `gt`: ground-truth ids per query  
+   - `Ms`: boolean masks for valid set membership per query  
+   - `N`, `NQ`: corpus size and number of queries  
 
-# Construction costs
-python -m benchmarks.measure_construction --data-dir data --output results/construction_costs.json
+2. **Baseline runs (HNSW PostFilter, TANNS+Post, TANNS‑C)**
 
-# Generate figures (requires results)
-python -m benchmarks.generate_figures \
-  --results results/baseline_results.csv \
-  --selectivity results/selectivity_recall.json \
-  --construction results/construction_costs.json \
-  --output-dir figures/
-```
+   ```bash
+   python benchmarks/run_baselines.py \
+       --data-dir data \
+       --results-dir results
+   ```
+
+   This:
+
+   - builds all three indices  
+   - runs the full query set  
+   - writes per‑method, per‑query stats and an overall summary to:
+     - `results/baseline_results.csv`  (aggregated curves: recall vs QPS etc.)
+     - `results/_baselines_simple.json` (per‑query recall, visited_count, selectivity)
+
+3. **Selectivity analysis**
+
+   ```bash
+   python benchmarks/compute_selectivity.py \
+       --data-dir data \
+       --results-dir results
+   ```
+
+   This bins queries by **selectivity** \(|valid\_set| / N\) and computes Recall@10 per method within each bin, writing:
+
+   - `results/_selectivity_recall.json`
+
+4. **Construction cost**
+
+   ```bash
+   python benchmarks/measure_construction.py \
+       --data-dir data \
+       --results-dir results
+   ```
+
+   This measures index build time and peak RSS memory for each method and writes:
+
+   - `results/_construction_costs.json`
+
+5. **Figures**
+
+   ```bash
+   python benchmarks/generate_figures.py \
+       --results-dir results \
+       --output-dir figures
+   ```
+
+   This generates all paper figures as `PNG` + `PDF` under `figures/`.
 
 ---
 
-## Limitations
+## Figures
 
-1. **Small-scale evaluation only.** All benchmarks use the 1,000-vector small split.  At this scale, brute-force pre-filter is both faster and exact.  Results should be validated on the full 4.27 M-vector dataset.
-2. **Synthetic queries.** Category and temporal windows are drawn uniformly at random; real workloads may have skewed distributions.
-3. **Single-threaded.** QPS numbers reflect single-threaded Python execution; production deployments would use C++/Rust with batch parallelism.
-4. **No disk-tier evaluation.** All indices are in-memory.  Filtered-DiskANN's on-disk design is not exercised.
-5. **Fixed hyper-parameters.** Temporal decay rate λ and composite weight α were not tuned via grid search on validation queries.
+`generate_figures.py` currently produces:
+
+- **Figure 1** – Architecture diagram:  
+  category-aware Filtered‑Vamana layer + HNT temporal layer, with query `(q, C, [t_start, t_end], k)` and beam search over the temporal graph.
+
+- **Figure 2** – Recall@10 vs QPS:  
+  log‑scale QPS (x‑axis) against Recall@10 (y‑axis) for `PostFilter-HNSW`, `TANNS+Post`, `TANNS‑C`.
+
+- **Figure 3** – Recall@100 vs QPS:  
+  same as Fig. 2 but Recall@100.
+
+- **Figure 4** – Recall@10 vs visited nodes:  
+  efficiency curve using per‑query `visited_count` from `run_baselines.py`. Shows how many nodes each method touches to reach a given recall.
+
+- **Figure 5** – Selectivity analysis:  
+  Recall@10 as a function of query selectivity (% of corpus satisfying C × [t_start, t_end]). Highlights the **low‑selectivity regime** (< 1%) where TANNS‑C is designed to shine.
+
+- **Figure 6** – Construction time and peak memory:  
+  per‑method build cost on the SPCL/arxiv‑for‑fanns‑medium dataset.
+
+---
+
+## Limitations and TODOs
+
+1. **Limited method coverage.**  
+   Only three methods are implemented end‑to‑end: `PostFilter-HNSW`, `TANNS+Post`, `TANNS‑C`. Planned (but not yet wired) baselines include ACORN and Filtered‑DiskANN.
+
+2. **Single dataset / medium scale.**  
+   Experiments currently use the **100K** SPCL/arxiv‑for‑fanns‑medium split[cite:114]. Extending to the large split (or additional filtered‑ANN benchmarks) would better showcase scalability and structural gains.
+
+3. **Python implementation.**  
+   All indices are implemented in Python / NumPy. Performance is suitable for research but not production; a C++/Rust implementation would be significantly faster.
+
+4. **Static benchmark.**  
+   While TANNS‑C supports dynamic insert and tombstone delete in principle, the current scripts only evaluate static build + query workloads.
+
+5. **No hyper‑parameter sweep.**  
+   Default parameters (e.g., `M`, `ef_construction`, alpha in the blended score) follow the design document, not a tuned grid search.
 
 ---
 
 ## Citation
 
-If you use this code, please cite:
+If you use this code or ideas in scientific work, please cite:
 
 ```bibtex
 @misc{tanns-c-2026,
   title   = {{TANNS-C}: Temporal- and Category-Aware Approximate Nearest Neighbour Search},
   author  = {Tan, T.K.},
   year    = {2026},
-  note    = {HKUST}
+  note    = {HKUST Technical Report}
 }
 ```
 

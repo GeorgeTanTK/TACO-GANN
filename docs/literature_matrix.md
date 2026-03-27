@@ -1,180 +1,222 @@
-# Literature Matrix: Filtered / Temporal / Metadata-Aware Approximate Nearest Neighbor Search (2023–2026)
+# Literature Matrix: Temporal, Filtered, and Metadata-Aware Approximate Nearest Neighbor Search (2020–2026)
 
-**Compiled:** 2026-03-05  
-**Context:** Related work survey for TANNS-C (Temporal- and Category-Aware ANN Index)  
-**Scope:** All papers on filtered, temporal, or metadata-aware ANNS published 2023–2026, plus key precursors
+**Compiled:** 2026‑03‑27  
+**Context:** Related work survey for TANNS‑C (Temporal‑ and Category‑Aware ANN Index)  
+**Scope:** Temporal, filtered, and metadata‑aware ANN methods that are relevant to conjunctive queries of the form  
+> “Top‑k nearest neighbours of q within category C that are valid in time window [t_start, t_end].”
+
+Where possible, tables focus on:
+
+- **Temporal evolution** (dynamic inserts/updates, time‑stamped validity, historic neighbours)
+- **Filter support** (labels, attributes, ranges, predicates)
+- **Index structure** (graph type, range structures, hybrid systems)
 
 ---
 
-## Part I: Core Literature Matrix
+## Part I: Core Literature Tables
 
 ### A. Temporal-Aware ANN Systems
+
+These systems explicitly model time or support streaming inserts/expirations, but do **not** make category/label filters a first‑class part of the index.
 
 | Field | **TANNS** | **TiGER** | **FreshDiskANN** |
 |---|---|---|---|
 | **Title** | Timestamp Approximate Nearest Neighbor Search over High-Dimensional Vector Data | A Versioned Unified Graph Index for Dynamic Timestamp-Aware Nearest Neighbor Search | FreshDiskANN: A Fast and Accurate Graph-Based ANN Index for Streaming Similarity Search |
 | **Authors** | Y. Wang, Z. He, Y. Tong, Z. Zhou, Y. Zhong | J.W. Chung, W. Zhao | A. Singh, S.J. Subramanya, R. Krishnaswamy, H.V. Simhadri |
-| **Venue, Year** | ICDE 2025 | ICLR 2026 (withdrawn Nov 2025) | arXiv 2021 / NeurIPS'23 streaming baseline |
-| **Core Method** | Timestamp Graph on HNSW: single unified proximity graph with per-node Historic Neighbor Tree (HNT) compressing temporal neighbor versions to O(MN) space. Backup-neighbor mechanism maintains connectivity after expirations. | Versioned proximity graph with validity-annotated edges [t_insert, t_expire], predecessor links for global reachability, and sparse edge database for O(1) range-minimum lookups over contiguous timestamp queries. | FreshVamana: streaming Vamana graph supporting real-time inserts/deletes. StreamingMerge merges in-memory updates into SSD-resident long-term index with write cost proportional to change set. |
-| **Filter Type** | Range/timestamp (single query timestamp; validity interval per vector) | Range/timestamp (contiguous or disjoint timestamp sets) | None (pure streaming ANN; no attribute filtering) |
-| **Graph Base** | HNSW (extended) | Custom proximity graph (HNSW-inspired) | Vamana (DiskANN) |
-| **Key Datasets** | SIFT-1M, GIST-1M, DEEP-1M, GloVe-1M | SIFT-1M, GloVe-100-1M | SIFT-1B (~900M), MS Turing-30M, Wiki-35M |
-| **Best Recall@10** | >0.99 on all 4 datasets (SIFT, GIST, DEEP, GloVe) | N/A (reports Recall@100 only) | ~0.95 5-recall@5 (streaming) |
-| **Best Recall@100** | Not reported (k=10 only) | ~0.90+ (from QPS-recall curves) | Not primary metric |
-| **QPS at 0.9 recall** | ~50K QPS at 0.95 recall (SIFT/DEEP); 7K (GIST); 4.5K (GloVe). 4.4×–138.1× speedup over baselines | ~10K–100K (SIFT, from figure plots; ~5× over baselines) | ~1,000 search/sec on 900M pts (SSD); concurrent 1.8K inserts + 1.8K deletes/sec |
-| **Temporal Evolution** | **Yes** (core contribution: dynamic insert/expire) | **Yes** (dynamic insertions with predecessor links) | **Yes** (streaming inserts + deletes) |
-| **Category/Label Filters** | **No** | **No** | **No** |
-| **Open-Source Code** | Not released | Not available (withdrawn) | [github.com/microsoft/DiskANN](https://github.com/microsoft/DiskANN) |
+| **Venue, Year** | ICDE 2025 | ICLR 2026 (withdrawn Nov 2025) | arXiv 2021 (used in later streaming work) |
+| **Core Method** | **Timestamp Graph**: single unified proximity graph, plus per‑node **Historic Neighbor Tree (HNT)** that compresses neighbour histories so all timestamps share one graph with \(O(M^2 N)\) space[cite:74]. Fast insert/expire operations maintain temporal consistency. | Versioned timestamp‑aware proximity graph. Each edge stores a validity interval \([t_\text{insert}, t_\text{expire}]\); predecessor links maintain global reachability across versions. | **FreshVamana**: streaming Vamana graph supporting continuous inserts and deletes; **StreamingMerge** folds in-memory updates into an SSD‑resident long‑term graph with write cost proportional to the change set. |
+| **Filter Type** | Timestamp (single query time; each vector has a validity interval) | Timestamp sets / ranges | None (pure similarity search) |
+| **Graph Base** | HNSW‑style graph with temporal extensions[cite:74] | Custom versioned proximity graph | Vamana / DiskANN family |
+| **Key Datasets** | SIFT‑1M, GIST‑1M, DEEP‑1M, GloVe‑1M | SIFT‑1M, GloVe‑100‑1M | SIFT‑1B (~900M), MS Turing‑30M, Wiki‑35M |
+| **Temporal Evolution** | **Yes** (insert + expire, historic neighbours) | **Yes** (versioned graph) | **Yes** (streaming inserts + deletes) |
+| **Category / Label Filters** | **No** | **No** | **No** |
+| **Open-Source Code** | Not released at time of writing | Not released (paper withdrawn) | [Microsoft DiskANN GitHub][cite:136] (FreshDiskANN concepts later influence streaming DiskANN variants) |
 
 ---
 
-### B. Category/Label-Filtered ANN Systems
+### B. Category / Label-Filtered ANN Systems
+
+These systems make attribute or label filters first‑class, mainly via graph construction and traversal, but treat time either as a static attribute or ignore it.
 
 | Field | **Filtered-DiskANN** | **NHQ** | **ACORN** | **SIEVE** | **RWalks** |
 |---|---|---|---|---|---|
-| **Title** | Filtered-DiskANN: Graph Algorithms for Approximate Nearest Neighbor Search with Filters | An Efficient and Robust Framework for Approximate Nearest Neighbor Search with Attribute Constraint | ACORN: Performant and Predicate-Agnostic Search Over Vector Embeddings and Structured Data | SIEVE: Effective Filtered Vector Search with Collection of Indexes | RWalks: Random Walks as Attribute Diffusers for Filtered Vector Search |
-| **Authors** | S. Gollapudi, N. Karia, V. Sivashankar, R. Krishnaswamy et al. (Microsoft) | M. Wang, L. Lv, X. Xu, Y. Wang, Q. Yue, J. Ni | L. Patel, P. Kraft, C. Guestrin, M. Zaharia | Z. Li, S. Huang, W. Ding, Y. Park, J. Chen | A. Ait Aomar, K. Echihabi, M. Arnaboldi, I. Alagiannis, D. Hilloulin, M. Cherkaoui |
+| **Title** | Graph Algorithms for Approximate Nearest Neighbor Search with Filters | An Efficient and Robust Framework for Approximate Nearest Neighbor Search with Attribute Constraint | ACORN: Performant and Predicate-Agnostic Search Over Vector Embeddings and Structured Data | SIEVE: Effective Filtered Vector Search with Collection of Indexes | RWalks: Random Walks as Attribute Diffusers for Filtered Vector Search |
+| **Authors** | S. Gollapudi, N. Karia, V. Sivashankar, R. Krishnaswamy et al. | M. Wang, L. Lv, X. Xu, Y. Wang, Q. Yue, J. Ni | L. Patel, P. Kraft, C. Guestrin, M. Zaharia | Z. Li, S. Huang, W. Ding, Y. Park, J. Chen | A. Ait Aomar, K. Echihabi, M. Arnaboldi, I. Alagiannis, D. Hilloulin, M. Cherkaoui |
 | **Venue, Year** | WWW 2023 | NeurIPS 2023 | SIGMOD 2024 | VLDB 2025 | SIGMOD 2025 |
-| **Core Method** | FilteredVamana / StitchedVamana: category-aware graph construction with filter-aware RobustPrune; per-label entry points; FilteredGreedySearch routes only through label-matching nodes. | Composite proximity graph using "fusion distance" jointly encoding vector distance + attribute match; NHQ pruning preserves attribute diversity; two NPG variants (NPG_kgraph, NPG_nsw). | Predicate-agnostic hybrid search on HNSW. ACORN-γ expands neighbor lists by factor γ=1/s_min at build time; predicate subgraph traversal at query time restricts to matching nodes. ACORN-1 does expansion at search time. | Workload-aware collection of many specialized HNSW indexes. 3D analytical model selects fastest index per query for target recall. Amortizes build cost across predicate patterns. | Index-agnostic method: attribute-aware random walks diffuse attribute information through graph, guiding traversal toward predicate-satisfying regions without modifying index construction. |
-| **Filter Type** | Category/label (single equality predicate) | Multi-attribute categorical (equality, compound) | Predicate-agnostic (equality, range, regex, compound) | Predicate-agnostic (equality, compound, multi-label) | Predicate-agnostic (unique + composite filters) |
-| **Graph Base** | Vamana | NSW / KGraph (+ DiskANN extension) | HNSW (FAISS extension) | HNSW (collection) | Agnostic (tested on HNSW) |
-| **Key Datasets** | Turing-2.6M, Prep-1M, DANN-3.3M, SIFT-1M, GIST-1M | 10 datasets: SIFT-1M, GIST-1M, GloVe-1.2M, Crawl-2M, Paper-2M, BIGANN-100M, etc. | SIFT-1M, Paper-2M, TripClick-1M, LAION-1M/25M | YFCC-10M, Paper, UQV, GIST, SIFT, MSONG | 4 real-world datasets up to 100M vectors |
-| **Best Recall@10** | >0.90 at thousands of QPS (SSD) | >0.99 on SIFT, GIST, GloVe, etc. | ~0.95+ across datasets (from curves) | >0.99 on low-selectivity sets | Not tabulated (2× faster than ACORN at same recall) |
-| **Best Recall@100** | Not reported | 0.80–1.00 range | Not reported | Not reported | Not reported |
-| **QPS at 0.9 recall** | StitchedVamana: 6–7.5× over IVF baseline (Prep/DANN); thousands QPS on SSD | 10³–10⁴ on SIFT-1M; 315× faster than AF-DiskANN on BIGANN-100M | 2–1,000× over baselines depending on selectivity (LAION-25M: >1,000×) | Up to 8.06× over ACORN (YFCC); 10.61× over CAPS (Paper) | 2× faster than ACORN; 76× faster build; 13× faster unfiltered |
-| **Temporal Evolution** | **No** | **No** | **No** | **No** | **No** |
-| **Category/Label Filters** | **Yes** (core contribution) | **Yes** (core contribution) | **Yes** (predicate-agnostic) | **Yes** (workload-aware) | **Yes** (attribute diffusion) |
-| **Open-Source Code** | [github.com/microsoft/DiskANN](https://github.com/microsoft/DiskANN) | [github.com/YujianFu97/NHQ](https://github.com/YujianFu97/NHQ) | [github.com/stanford-futuredata/ACORN](https://github.com/stanford-futuredata/ACORN) | Not released | Not released |
+| **Core Method** | **FilteredVamana / StitchedVamana**: graph construction is label‑aware via filter‑constrained **RobustPrune** and **FilteredGreedySearch**; per‑label entry points and ST‑connectivity guarantees for each label[cite:136]. | Composite “fusion distance” that jointly encodes vector similarity and attribute proximity; builds an attribute‑aware proximity graph with diversity‑preserving pruning. | **Predicate‑agnostic hybrid search**: HNSW index plus a filter‑aware traversal. ACORN‑γ expands neighbor lists by factor γ during construction; ACORN‑1 expands at query time. Traversal navigates **predicate subgraphs** of HNSW without duplicating indices. | **Workload‑aware multi‑index**: builds many specialized HNSW indices tuned to different filters/predicates; a 3D analytical cost model chooses the best index per query. | Index‑agnostic: uses attribute‑biased random walks over existing graphs to “diffuse” attribute information, biasing traversal towards nodes satisfying the predicate without changing the underlying index. |
+| **Filter Type** | Single label equality (AND of multiple labels via Cartesian expansion) | Multi‑attribute categorical (equality, compound) | Predicate‑agnostic (equality, ranges, regex, compound predicates) | Predicate‑agnostic (equality and compound, multi‑label) | Predicate‑agnostic attribute filters |
+| **Graph Base** | Vamana / DiskANN | NSW / KGraph (+ DiskANN adaptations) | HNSW (FAISS‑based) | HNSW (collection) | Agnostic (evaluated on HNSW) |
+| **Temporal Evolution** | **No** (static index) | **No** | **No** (time is just another attribute) | **No** | **No** |
+| **Category / Label Filters** | **Yes** (core contribution) | **Yes** (core contribution) | **Yes** (generic predicates) | **Yes** | **Yes** |
+| **Open-Source Code** | [DiskANN GitHub][cite:136] (Filtered‑DiskANN code integrated) | [NHQ GitHub][cite:136] | [ACORN GitHub][cite:2] | Not public at time of writing | Not public at time of writing |
 
 ---
 
 ### C. Range-Filtered ANN Systems
+
+These methods build range‑sensitive indexes for numeric attributes (e.g., price, timestamp). They are an important reference for temporal windows, but generally **do not** model temporal neighbour evolution in the TANNS sense.
 
 | Field | **SeRF** | **Dynamic SeRF (DSG)** | **iRangeGraph** | **DIGRA** | **UNIFY** |
 |---|---|---|---|---|---|
 | **Title** | SeRF: Segment Graph for Range-Filtering Approximate Nearest Neighbor Search | Dynamic Range-Filtering Approximate Nearest Neighbor Search | iRangeGraph: Improvising Range-dedicated Graphs for Range-filtering Nearest Neighbor Search | DIGRA: A Dynamic Graph Indexing for Approximate Nearest Neighbor Search with Range Filter | UNIFY: Unified Index for Range Filtered Approximate Nearest Neighbors Search |
 | **Authors** | C. Zuo, M. Qiao, W. Zhou, F. Li, D. Deng | Z. Peng, M. Qiao, W. Zhou, F. Li, D. Deng | Y. Xu, J. Gao, Y. Gou, C. Long, C.S. Jensen | M. Jiang, Z. Yang, F. Zhang, G. Hou, J. Shi, W. Zhou, F. Li, S. Wang | A. Liang, P. Zhang, B. Yao, Z. Chen, Y. Song, G. Cheng |
 | **Venue, Year** | SIGMOD 2024 | VLDB 2025 | SIGMOD 2025 | SIGMOD 2025 | VLDB 2025 |
-| **Core Method** | Segment graph losslessly compresses O(n) prefix-range HNSW indexes into single structure with same size as one HNSW; 2D segment graph for general ranges at O(n log n). | Dynamic segment graph with rectangle-labeled edges for streaming insert-then-query workloads. Insertions add O(log \|D\|) edges in expectation. | Segment tree of RNG-based HNSW elemental graphs; on-the-fly reconstruction of range-specific graph from O(log n) elemental graphs at query time. | Dynamic B-tree-like multi-way tree with NSW indices at each node; lazy weight-based split/merge yields O(log n) amortized update overhead—5 orders of magnitude cheaper than rebuild. | Segmented Inclusive Graph (SIG): segments by attribute values so any contiguous range's proximity graph is a subgraph. Hierarchical SIG (HSIG) adds HNSW-like levels. |
-| **Filter Type** | Numeric range (single ordered attribute) | Numeric range (dynamic/streaming) | Numeric range (single + multi-attribute via probabilistic extension) | Numeric range (single attribute) | Numeric range (single attribute, all widths) |
-| **Graph Base** | HNSW | HNSW | HNSW (segment tree) | NSW (multi-way tree) | HNSW-derived (SIG/HSIG) |
-| **Key Datasets** | SIFT, GIST, GloVe, Text2Image (all 1M) | SIFT, GIST, GloVe, Text2Image | WIT-1M, TripClick-1M, Redcaps-1M, YouTube-RGB/Audio-1M | SIFT-1M, Redcaps-1M, GIST-1M, WIT-1M | SIFT-1M, GIST-1M, DEEP-1M/100M, Text2Image |
-| **Best Recall@10** | >0.95 (SIFT, varied range widths) | ~0.90+ (competitive with static) | >0.90 on all datasets across selectivities | >0.90, stable post-updates | State-of-the-art across all range widths |
-| **Best Recall@100** | Not reported | Not reported | Not reported | Not reported | Not reported |
-| **QPS at 0.9 recall** | Up to ~10× over naive methods at narrow ranges | Competitive with or better than static baselines | 2–5× over best baselines; ~2K–10K QPS on 1M datasets | ~2K–4K (SIFT); ~400–800 (Redcaps); stable under 10% inserts | Best or competitive at all range widths |
-| **Temporal Evolution** | **No** (static) | **Yes** (streaming inserts) | **No** (static) | **Yes** (inserts + deletes, O(log n)) | **No** (static) |
-| **Category/Label Filters** | **No** | **No** | **No** | **No** | **No** |
-| **Open-Source Code** | [github.com/Chaoji-zuo/SeRF](https://github.com/Chaoji-zuo/SeRF) | Not released | [github.com/YuexuanXu7/iRangeGraph](https://github.com/YuexuanXu7/iRangeGraph) | [github.com/CUHK-DBGroup/DIGRA](https://github.com/CUHK-DBGroup/DIGRA) | [github.com/Liang-Anqi/UNIFY](https://github.com/Liang-Anqi/UNIFY) |
+| **Core Method** | **Segment Graph**: compresses many per‑range HNSW indexes into one structure; supports arbitrary numeric ranges with near‑optimal graph reuse. | Dynamic segment graph with rectangle‑labeled edges and logarithmic expected update cost for streaming insert‑then‑query workloads. | Segment tree of RNG/HNSW “elemental graphs”; range queries combine a small number of elemental graphs at query time. | Dynamic multi‑way tree where each node stores an NSW index; supports inserts and deletes with \(O(\log n)\) amortized cost while preserving range‑filtered ANN quality. | **Segmented Inclusive Graph (SIG)**: segments by attribute value so any contiguous range’s graph is a subgraph; hierarchical SIG (HSIG) adds multiple levels akin to HNSW. |
+| **Filter Type** | Numeric range (single attribute) | Numeric range (streaming) | Numeric range (single and multi‑attribute variants) | Numeric range (single attribute) | Numeric range (single attribute) |
+| **Graph Base** | HNSW | HNSW | HNSW / RNG | NSW | HNSW‑like |
+| **Temporal Evolution** | Static | **Yes** (streaming inserts) | Static | **Yes** (updates) | Static |
+| **Category / Label Filters** | **No** | **No** | **No** | **No** | **No** |
 
 ---
 
-### D. Additional Range, Compound, and System Papers
+### D. Systems, Hybrid Queries, and Benchmarks
 
-| Field | **KHI** | **WinFilter (β-WST)** | **ESG** | **RangePQ** | **WoW** |
-|---|---|---|---|---|---|
-| **Title** | Efficient Approximate Nearest Neighbor Search under Multi-Attribute Range Filter | Approximate Nearest Neighbor Search with Window Filters | ESG: Elastic Graphs for Range-Filtering Approximate k-Nearest Neighbor Search | Efficient Dynamic Indexing for Range Filtered Approximate Nearest Neighbor Search | WoW: A Window-to-Window Incremental Index for Range-Filtering ANN Search |
-| **Authors** | Y. Yu, D. Cheng, Y. Zhang, L. Qin, W. Zhang, X. Lin | J. Engels, B. Landrum, S. Yu, L. Dhulipala, J. Shun | M. Yang, W. Li, Z. Shen, C. Xiao, W. Wang | F. Zhang, M. Jiang, G. Hou, J. Shi, H. Fan, W. Zhou, F. Li, S. Wang | Z. Wang, J. Zhang, W. Hu |
-| **Venue, Year** | arXiv Feb 2026 | arXiv Feb 2024 | arXiv Apr 2025 | SIGMOD 2025 | arXiv Aug 2025 |
-| **Core Method** | Key-value Hybrid Index: skew-aware k-d-tree partitioning of multi-attribute space + HNSW per tree node. First to tackle multi-attribute RFANNS. | Modular tree-based framework wrapping any c-approximate NN index for window (range) search. Formal approximation guarantees. Up to 75× speedup. | Elastic relaxation: allows controlled out-of-range inclusion during search, reducing required subranges to at most 2 (vs. O(log N) in SeRF). | PQ-based range-filtered ANN with O(n log K) space; hybrid two-layer structure reduces to O(n). Supports dynamic updates natively. | Hierarchical window graphs with incremental insertion; optimizes relevant window search based on range selectivity. |
-| **Filter Type** | Multi-attribute range (compound range predicates) | Numeric range/window (single ordered attribute) | Numeric range (single attribute) | Numeric range (single attribute) | Numeric range (single attribute) |
-| **Graph Base** | HNSW (per tree node) | Agnostic (wraps any ANN index) | Proximity graph (HNSW-based) | PQ-based (not graph) | Window-graph (proximity-based) |
-| **Key Datasets** | 4 real-world datasets (typical ANN benchmarks) | SIFT + YFCC with real timestamps, adversarial embeddings | SIFT, GIST, DEEP | SIFT, GIST, DEEP, Text2Image | Standard RFANNS benchmarks |
-| **Best Recall@10** | Not explicitly stated (QPS improvement focus) | Same recall, 75× faster | High accuracy maintained | Competitive with graph methods | Matches best static index |
-| **QPS at 0.9 recall** | 2.46× avg; up to 16.22× over single-attr baselines | Up to 75× over prior methods | 1.5–6× over state-of-the-art | Competitive; native update support | 4× faster than best incremental index |
-| **Temporal Evolution** | **No** | **No** (static; handles timestamp ranges as attribute) | **No** | **Yes** (inserts/deletes) | **Yes** (incremental insertion) |
-| **Category/Label Filters** | **No** (range only) | **No** | **No** | **No** | **No** |
-| **Open-Source Code** | Not released | [github.com/parlayann/window_filters](https://github.com/parlayann/window_filters) | Not released | Not released | Not released |
-
----
-
-### E. Systems, Benchmarks, and Surveys
+These works support hybrid or filtered search in broader system contexts (DBMSs, multi‑tenant systems, general FANNS benchmarks).
 
 | Field | **Curator** | **HQANN** | **NaviX** | **PASE** | **FANNS Benchmark (ETH)** |
 |---|---|---|---|---|---|
 | **Title** | Curator: Efficient Indexing for Multi-Tenant Vector Databases | HQANN: Efficient and Robust Similarity Search for Hybrid Queries with Structured and Unstructured Constraints | NaviX: A Native Vector Index Design for Graph DBMSs With Robust Filtered Search | PASE: PostgreSQL Ultra-High-Dimensional Approximate Nearest Neighbor Search Extension | Benchmarking Filtered Approximate Nearest Neighbor Search Algorithms on Transformer-based Embedding Vectors |
 | **Authors** | Y. Jin, Y. Wu, W. Hu, B.M. Maggs, X. Zhang, D. Zhuo | W. Wu, J. He, Y. Qiao, G. Fu, L. Liu, J. Yu | G. Sehgal, S. Salihoğlu | W. Yang, T. Li, G. Fang, H. Wei | P. Iff, P. Bruegger, M. Chrapek, M. Besta, T. Hoefler |
-| **Venue, Year** | arXiv 2024 | CIKM 2022 | VLDB 2025 | SIGMOD 2020 (Industrial) | arXiv Jul 2025 (ETH Zurich) |
-| **Core Method** | Global Clustering Tree (hierarchical k-means) shared across tenants; per-tenant Tenant Clustering Trees encoded via Bloom filters. Matches per-tenant indexing speed at shared-index memory. | Attribute navigation structure alongside proximity graph; fuses vector similarity with structured constraint matching during unified traversal. | Adaptive-local heuristic for filtered kNN in graph DBMS (KùzuDB): dynamically picks expansion strategy based on per-node estimated selectivity. | PostgreSQL extension supporting HNSW + IVFFlat with composite SQL predicate queries over high-dimensional vectors. | Comprehensive benchmark: 11 FANNS methods on arxiv-for-fanns dataset (2.7M arXiv abstracts, 11 real attributes). No single winner; method choice depends on filter type and selectivity. |
-| **Filter Type** | Tenant-identity/label (binary access control per tenant) | Compound/multi-attribute (equality, structured constraints) | Predicate-agnostic (equality, compound via pre-filtering) | Compound SQL (equality, range, multi-attribute) | All (benchmark covers categorical, range, compound) |
-| **Graph Base** | IVF (hierarchical k-means) | HNSW (or any proximity graph) | HNSW | HNSW + IVFFlat | Multiple (benchmark) |
-| **Key Datasets** | YFCC100M-1M (192d, 1K tenants), arXiv-2M (384d, 100 tenants) | GloVe-1.2M | YFCC-1M, Wikipedia embeddings | Alibaba production, SIFT | arxiv-for-fanns: 2.7M abstracts, 4096d, 11 attributes |
-| **Best Recall@10** | On par with per-tenant indexing | 0.99 on GloVe-1.2M (~50µs latency) | Robust at medium-to-low selectivity | Production-level (Alibaba) | Varies by method; no universal winner |
-| **QPS at 0.9 recall** | 37.2× over metadata filtering | ~10× over prior hybrid ANNS | Outperforms blind/one-hop heuristics | Not tabulated | Benchmark results per method |
-| **Temporal Evolution** | **Partial** (insert/delete/access-revoke; GCT fixed) | **No** | **No** | **Yes** (PostgreSQL native updates) | **No** |
-| **Category/Label Filters** | **Yes** (tenant ID) | **Yes** (multi-attribute) | **Yes** (equality + compound) | **Yes** (SQL predicates) | **Yes** (benchmark) |
-| **Open-Source Code** | Not released | Not released | [github.com/kuzudb/kuzu](https://github.com/kuzudb/kuzu) | [github.com/B-tree-cloud/pase](https://github.com/B-tree-cloud/pase) | Dataset: [HuggingFace SPCL/arxiv-for-fanns](https://huggingface.co/datasets/SPCL/arxiv-for-fanns-medium) |
+| **Venue, Year** | arXiv 2024 | CIKM 2022 | VLDB 2025 | SIGMOD 2020 (Industrial) | arXiv 2025 (ETH Zurich) |
+| **Core Method** | Global clustering tree shared across tenants; per‑tenant clustering encoded via Bloom filters. Optimizes **multi‑tenant label filtering**, not temporal neighbour evolution. | Hybrid query index combining structured constraints with ANN; navigates both attribute and vector space during a unified search. | Native vector index inside Kùzu DBMS; adaptively chooses traversal strategies for filtered k‑NN queries based on estimated selectivity and graph structure. | PostgreSQL extension with HNSW/IVFFlat, supporting full SQL predicates over vectors and structured columns. | Introduces **arxiv‑for‑fanns** datasets (small/medium/large) with transformer embeddings and 11 attributes, and benchmarks a wide range of FANNS methods[cite:114][cite:133][cite:134]. No method jointly models temporal neighbour evolution and category. |
+| **Filter Type** | Tenant labels, access control | Compound structured attributes | Predicate‑agnostic filters in a graph DBMS | SQL predicates (equality, ranges, joins) | All FANNS filter types (exact‑match, range, set‑membership) |
+| **Temporal Evolution** | Partial (tenants can change, but neighbour evolution not explicitly modeled) | No | No | Uses Postgres update mechanisms | No (static datasets) |
+| **Category / Label Filters** | Yes (tenant/label) | Yes | Yes | Yes | Yes (as workload, not as method) |
 
 ---
 
 ## Part II: Consolidated Capability Matrix
 
-The table below cross-references all 22 papers/systems on the two dimensions most relevant to TANNS-C: **temporal evolution support** and **category/label filter support**.
+This matrix cross‑references representative systems on:
 
-| Paper | Year | Venue | Temporal Evolution | Category/Label Filter | Filter Type | Graph Base |
+- **Temporal evolution support**: does the index explicitly track how neighbour relations change over time (via inserts, deletes, time‑stamped validity, or historic structures like HNT)?  
+- **First‑class filter support**: does the index structure (not just post‑filtering) understand labels/attributes/ranges and use them in construction or traversal?
+
+| Paper / System | Year | Venue | Temporal Evolution | Category / Label Filter | Filter Type | Graph Base |
 |---|---|---|---|---|---|---|
-| **TANNS** | 2025 | ICDE | ✅ Yes | ❌ No | Timestamp | HNSW |
-| **TiGER** | 2025 | ICLR (withdrawn) | ✅ Yes | ❌ No | Timestamp set | Custom |
-| **FreshDiskANN** | 2021 | arXiv | ✅ Yes | ❌ No | None | Vamana |
-| **Dynamic SeRF (DSG)** | 2025 | VLDB | ✅ Yes | ❌ No | Numeric range | HNSW |
-| **DIGRA** | 2025 | SIGMOD | ✅ Yes | ❌ No | Numeric range | NSW |
-| **RangePQ** | 2025 | SIGMOD | ✅ Yes | ❌ No | Numeric range | PQ |
-| **WoW** | 2025 | arXiv | ✅ Yes | ❌ No | Numeric range | Window graph |
-| **Curator** | 2024 | arXiv | ⚠️ Partial | ✅ Yes (tenant) | Tenant label | IVF |
-| **PASE** | 2020 | SIGMOD | ✅ Yes (RDBMS) | ✅ Yes (SQL) | Compound SQL | HNSW+IVF |
-| **Filtered-DiskANN** | 2023 | WWW | ❌ No | ✅ Yes | Category/label | Vamana |
-| **NHQ** | 2023 | NeurIPS | ❌ No | ✅ Yes | Multi-attr categorical | NSW/KGraph |
-| **ACORN** | 2024 | SIGMOD | ❌ No | ✅ Yes | Predicate-agnostic | HNSW |
-| **SIEVE** | 2025 | VLDB | ❌ No | ✅ Yes | Predicate-agnostic | HNSW |
-| **RWalks** | 2025 | SIGMOD | ❌ No | ✅ Yes | Predicate-agnostic | Agnostic |
-| **HQANN** | 2022 | CIKM | ❌ No | ✅ Yes | Compound | HNSW |
-| **NaviX** | 2025 | VLDB | ❌ No | ✅ Yes | Predicate-agnostic | HNSW |
-| **SeRF** | 2024 | SIGMOD | ❌ No | ❌ No | Numeric range | HNSW |
-| **iRangeGraph** | 2025 | SIGMOD | ❌ No | ❌ No | Numeric range | HNSW |
-| **UNIFY** | 2025 | VLDB | ❌ No | ❌ No | Numeric range | HNSW |
-| **KHI** | 2026 | arXiv | ❌ No | ❌ No | Multi-attr range | HNSW |
-| **WinFilter (β-WST)** | 2024 | arXiv | ❌ No | ❌ No | Numeric range | Agnostic |
-| **ESG** | 2025 | arXiv | ❌ No | ❌ No | Numeric range | Prox. graph |
+| TANNS | 2025 | ICDE | ✅ Yes | ❌ No | Timestamp | HNSW + HNT[cite:74] |
+| TiGER | 2026 | ICLR (withdrawn) | ✅ Yes | ❌ No | Timestamp sets | Custom versioned graph |
+| FreshDiskANN | 2021 | arXiv | ✅ Yes | ❌ No | None | Vamana (DiskANN family) |
+| Dynamic SeRF (DSG) | 2025 | VLDB | ✅ Yes | ❌ No | Numeric range | HNSW |
+| DIGRA | 2025 | SIGMOD | ✅ Yes | ❌ No | Numeric range | NSW |
+| RangePQ | 2025 | SIGMOD | ✅ Yes | ❌ No | Numeric range | PQ‑based |
+| WoW | 2025 | arXiv | ✅ Yes | ❌ No | Numeric range | Window graph |
+| Curator | 2024 | arXiv | ⚠️ Partial | ✅ Yes (tenant) | Tenant labels | IVF‑style |
+| PASE | 2020 | SIGMOD | ✅ Yes (via DBMS) | ✅ Yes (SQL predicates) | General SQL | HNSW + IVF |
+| Filtered-DiskANN | 2023 | WWW | ❌ No | ✅ Yes | Single label equality | Vamana / DiskANN[cite:136] |
+| NHQ | 2023 | NeurIPS | ❌ No | ✅ Yes | Multi‑attribute categorical | NSW / KGraph |
+| ACORN | 2024 | SIGMOD | ❌ No | ✅ Yes | Predicate‑agnostic | HNSW[cite:2] |
+| SIEVE | 2025 | VLDB | ❌ No | ✅ Yes | Predicate‑agnostic | HNSW |
+| RWalks | 2025 | SIGMOD | ❌ No | ✅ Yes | Predicate‑agnostic | Agnostic (on HNSW) |
+| HQANN | 2022 | CIKM | ❌ No | ✅ Yes | Compound hybrid queries | HNSW |
+| NaviX | 2025 | VLDB | ❌ No | ✅ Yes | Predicate‑agnostic | HNSW |
+| SeRF | 2024 | SIGMOD | ❌ No | ❌ No | Numeric range | HNSW |
+| iRangeGraph | 2025 | SIGMOD | ❌ No | ❌ No | Numeric range | HNSW / RNG |
+| UNIFY | 2025 | VLDB | ❌ No | ❌ No | Numeric range | HNSW‑like |
+| KHI | 2026 | arXiv | ❌ No | ❌ No | Multi‑attribute range | HNSW |
+| WinFilter (β‑WST) | 2024 | arXiv | ❌ No | ❌ No | Numeric range | Index‑agnostic |
+| ESG | 2025 | arXiv | ❌ No | ❌ No | Numeric range | Proximity graph |
+| FANNS Benchmark | 2025 | arXiv | ❌ No | ✅ Yes (as workload) | EM, R, EMIS filters | Multiple (benchmark only)[cite:114][cite:134] |
 
-**Legend:** ✅ = native support, ❌ = not supported, ⚠️ = partial/limited
-
----
-
-## Part III: Gap Analysis — Motivation for TANNS-C
-
-### Gap 1: No Existing System Jointly Addresses Temporal Evolution and Category-Aware Filtering
-
-The literature on filtered approximate nearest neighbor search has advanced rapidly along two largely independent axes. On the temporal axis, TANNS (Wang et al., ICDE 2025) introduced the Timestamp Graph and Historic Neighbor Tree for efficient single-timestamp ANN queries, while TiGER (Chung & Zhao, 2025), Dynamic SeRF (Peng et al., VLDB 2025), DIGRA (Jiang et al., SIGMOD 2025), and FreshDiskANN (Singh et al., 2021) each address dynamic range-filtered or streaming ANN workloads — but none of these systems support category or label predicates. On the category-filtering axis, Filtered-DiskANN (Gollapudi et al., WWW 2023) embeds per-label graph construction with FilteredVamana, NHQ (Wang et al., NeurIPS 2023) fuses attribute matching into composite proximity graphs, and ACORN (Patel et al., SIGMOD 2024) enables predicate-agnostic traversal over expanded HNSW — yet all three are static indexes with no mechanism for handling temporal validity or evolving neighbor relationships. Even the most recent entries — SIEVE (Li et al., VLDB 2025), RWalks (Ait Aomar et al., SIGMOD 2025), NaviX (Sehgal & Salihoğlu, VLDB 2025), and KHI (Yu et al., 2026) — each advance either range filtering or label-based filtering in isolation, without jointly modeling temporal neighbor evolution. The only systems that touch both dimensions are PASE (Yang et al., SIGMOD 2020), which relies on PostgreSQL's generic transactional layer rather than temporal-aware indexing, and Curator (Jin et al., 2024), which handles only binary tenant-access labels without temporal neighbor versioning. In short, **no existing ANN index natively combines (i) category-aware graph construction, (ii) temporal neighbor versioning, and (iii) adaptive fallback for sparse filter combinations** into a single, unified structure.
-
-### Gap 2: The Joint Temporal + Category Query Is a Real and Growing Workload
-
-This gap is not merely theoretical. Real-world vector retrieval workloads increasingly require conjunctive temporal-categorical predicates — for example, "retrieve the k nearest documents in category cs.AI that were active before January 2025" or "find the most similar product embeddings in category Electronics inserted in the last 30 days." The FANNS benchmark (Iff et al., ETH Zurich 2025) demonstrates that filter selectivity, attribute type, and predicate compound structure all materially impact recall-QPS tradeoffs, yet its 11-attribute arXiv dataset is evaluated only with static indexes. TANNS-C addresses this gap by proposing a three-pillar architecture: (1) a Filtered-DiskANN-style category-aware graph with per-label entry points ensuring navigability within each category subgraph; (2) coarse temporal neighbor snapshots (a simplified Timestamp Graph) that version each node's neighbor list across time without the full O(M²N) overhead of the original Timestamp Graph; and (3) an ACORN-style two-hop fallback for sparse filter combinations where the intersection of a category and a time window yields too few candidates for reliable graph traversal. This combination is strictly more expressive than any single existing method, and the independent maturity of each component (validated in TANNS, Filtered-DiskANN, and ACORN respectively) provides strong evidence that their composition is both feasible and likely to outperform naive alternatives (pre-filtering, post-filtering, or sequential application of temporal and category filters).
+**Legend:** ✅ = native/explicit support, ❌ = no support, ⚠️ = partial / indirect support.
 
 ---
 
-## Part IV: Source URLs
+## Part III: Gap Analysis and Motivation for TANNS‑C
 
-| Paper | Primary Source |
+### Gap 1: Temporal Evolution vs. Filtered Search Have Evolved Separately
+
+Over the last five years, the ANN literature has progressed rapidly along **two mostly independent dimensions**:
+
+1. **Temporal evolution of neighbour relations.**  
+   TANNS proposes the **Timestamp Graph** and **Historic Neighbor Tree**, compressing neighbour histories so that a single graph supports timestamp‑aware queries with efficient insertions and expirations[cite:74]. FreshDiskANN and Dynamic SeRF focus on streaming inserts and dynamic range filters, but either ignore attributes altogether or treat numeric ranges as a separate partitioning structure. DIGRA and RangePQ similarly target range‑filtered dynamic workloads, but again treat time as just another numeric attribute, without explicit historic neighbour reconstruction.
+
+2. **First‑class filtered / hybrid queries.**  
+   In parallel, methods like **Filtered‑DiskANN** build label‑aware Vamana graphs with filter‑constrained pruning and per‑label entry points[cite:136]. NHQ, HQANN, and NaviX integrate attribute constraints directly into graph construction and traversal for hybrid structured‑plus‑vector search. ACORN, SIEVE, and RWalks push **predicate‑agnostic** filtered search over HNSW, demonstrating that generic graph‑level techniques can deliver strong recall/QPS trade‑offs across many filter types. However, all of these works assume a **static** notion of the graph: neighbour relations do not explicitly evolve with time, and “time” (if present) is simply another predicate.
+
+No existing index simultaneously:
+
+- tracks **how neighbours change over time** (as TANNS does via HNT), and  
+- treats **category/label predicates as first‑class routing constraints** in the graph (as Filtered‑DiskANN/ACORN/SIEVE do for static filters).
+
+### Gap 2: Conjunctive Temporal + Category Queries Are Real, but Poorly Supported
+
+FANNS workloads increasingly involve **conjunctive temporal‑categorical filters**, e.g.:
+
+- “Top‑k nearest papers in subject area `cs.AI` *before* January 2025,”  
+- “Most similar products in category `Electronics` that were active last month,”  
+- “Neighbour suggestions restricted to the current regulatory regime (temporal) within jurisdiction `EU` (categorical).”
+
+The ETH **FANNS benchmark** and the associated **arxiv‑for‑fanns** datasets were explicitly designed to stress such filtered workloads, with transformer embeddings of ArXiv abstracts plus 11 real‑world attributes[cite:114][cite:133][cite:134]. However:
+
+- Existing **filtered** methods on this dataset (e.g., Filtered‑DiskANN, ACORN, SIEVE, RWalks) either ignore time or treat it purely as another filter dimension.  
+- Existing **temporal** methods (TANNS, FreshDiskANN, Dynamic SeRF) either ignore attributes or support only generic range predicates, without category‑aware graph construction or medoid routing per label.
+
+For conjunctive queries of the form **(q, C, [t_start, t_end])**, this means:
+
+- Time is typically handled as a **post‑filter** (HNSW+post) or **pre‑filter** (scan then ANN), which destroys the structural guarantees of either the temporal graph or the filtered graph.  
+- No prior index is designed so that the **graph itself approximates how neighbours looked “around time t” inside category C**, while keeping traversal constrained to that label’s subgraph.
+
+### Gap 3: Unified, Single-Graph Treatment of Time and Category
+
+Several systems conceptually get close but stop short of a unified, temporal‑and‑category‑aware graph:
+
+- **ACORN** builds a single dense HNSW graph and defines predicate subgraphs at query time via expanded neighbors‑of‑neighbors traversal, but does not track how those predicate subgraphs evolve across timestamps; time is just another attribute.  
+- **Filtered‑DiskANN** ensures per‑label ST‑connectivity within a Vamana graph, but has no notion of historic neighbour lists or validity intervals.  
+- **TANNS** provides exactly that historic temporal view, but it works over an HNSW‑like structure that is **label‑agnostic**.
+
+There is therefore a clear, unfilled niche for:
+
+> A **single** graph index that (i) guarantees navigability within each label/category, (ii) reconstructs neighbours as they existed near a query time window, and (iii) supports practical recall/QPS trade‑offs on realistic filtered workloads like arxiv‑for‑fanns‑medium.
+
+TANNS‑C is designed to inhabit precisely this niche.
+
+---
+
+## Part IV: Where TANNS‑C Fits
+
+TANNS‑C, as implemented in this repository, combines ideas from both axes:
+
+- A **Filtered‑Vamana–style category‑aware graph** (per‑label entry points, ST‑connectivity invariants, and alpha‑blended neighbour scoring) inspired by Filtered‑DiskANN[cite:136]; and  
+- **Per‑node historic neighbour tables (HNT‑style)** that track how each node’s neighbours change across time, enabling reconstruction of neighbours valid for \([t_start, t_end]\) at query time, in the spirit of TANNS[cite:74].
+
+On top of this graph, TANNS‑C executes beam search that:
+
+1. Starts from category‑specific medoids.  
+2. Traverses only neighbours that are both:
+   - valid in the query time window, and  
+   - within the target category (or its label set).  
+3. Can fall back to broader graph walks (ACORN‑style) when the category×time intersection is sparse (planned future extension).
+
+In the capability matrix above, TANNS‑C would be the **first entry** with:
+
+- ✅ Temporal evolution support (HNT‑style neighbour history), and  
+- ✅ Native category / label filtering (Filtered‑Vamana‑style graph),  
+
+within a **single navigable graph** for conjunctive temporal+category queries. No existing publication occupies that exact combination today.
+
+---
+
+## Part V: Selected Source Links
+
+The following links are useful entry points to the primary literature and datasets referenced above.
+
+| Paper / Dataset | Primary Source |
 |---|---|
-| TANNS | [ICDE 2025 PDF](https://hufudb.com/static/paper/2025/ICDE25-wang.pdf) |
-| TiGER | [OpenReview (withdrawn)](https://openreview.net/forum?id=nadglckd3z) |
-| FreshDiskANN | [arXiv:2105.09613](https://arxiv.org/abs/2105.09613) |
-| Filtered-DiskANN | [ACM DL](https://dl.acm.org/doi/fullHtml/10.1145/3543507.3583552) / [PDF](https://harsha-simhadri.org/pubs/Filtered-DiskANN23.pdf) |
-| NHQ | [NeurIPS 2023](https://proceedings.neurips.cc/paper_files/paper/2023/hash/32e41d6b0a51a63a9a90697da19d235d-Abstract-Conference.html) |
-| ACORN | [arXiv:2403.04871](https://arxiv.org/abs/2403.04871) / [GitHub](https://github.com/stanford-futuredata/ACORN) |
-| SIEVE | [VLDB 2025](https://dl.acm.org/doi/10.14778/3749646.3749725) |
-| RWalks | [SIGMOD 2025](https://dl.acm.org/doi/10.1145/3725349) |
-| SeRF | [SIGMOD 2024](https://dl.acm.org/doi/10.1145/3639324) |
-| Dynamic SeRF (DSG) | [VLDB 2025](https://dl.acm.org/doi/10.14778/3748191.3748193) |
-| iRangeGraph | [arXiv:2409.02571](https://arxiv.org/abs/2409.02571) / [GitHub](https://github.com/YuexuanXu7/iRangeGraph) |
-| DIGRA | [SIGMOD 2025](https://dl.acm.org/doi/10.1145/3725399) / [GitHub](https://github.com/CUHK-DBGroup/DIGRA) |
-| UNIFY | [VLDB 2025](https://dl.acm.org/doi/10.14778/3717755.3717770) |
-| KHI | [Semantic Scholar](https://www.semanticscholar.org/paper/2a87d5497ccba98e591cb6da0a0a299fcadd4fa0) |
-| WinFilter (β-WST) | [arXiv:2402.00943](https://arxiv.org/abs/2402.00943) / [GitHub](https://github.com/parlayann/window_filters) |
-| ESG | [arXiv:2504.04018](https://arxiv.org/abs/2504.04018) |
-| RangePQ | [SIGMOD 2025](https://dl.acm.org/doi/10.1145/3725401) |
-| WoW | [arXiv:2508.18617](https://arxiv.org/abs/2508.18617) |
-| Curator | [arXiv:2401.07119](https://arxiv.org/abs/2401.07119) |
-| HQANN | [CIKM 2022](https://dl.acm.org/doi/10.1145/3511808.3557610) |
-| NaviX | [VLDB 2025](https://www.vldb.org/pvldb/vol18/p4438-sehgal.pdf) |
-| PASE | [SIGMOD 2020](https://dl.acm.org/doi/10.1145/3318464.3386131) |
-| FANNS Benchmark | [arXiv:2507.21989](https://arxiv.org/abs/2507.21989) / [Dataset](https://huggingface.co/datasets/SPCL/arxiv-for-fanns-medium) |
+| TANNS (Timestamp Graph / HNT) | ICDE 2025 PDF[cite:74] |
+| Filtered-DiskANN | ACM DL / PDF[cite:136] |
+| ACORN | arXiv & GitHub[cite:2] |
+| SeRF | SIGMOD 2024 (DL) |
+| Dynamic SeRF (DSG) | VLDB 2025 (DL) |
+| iRangeGraph | arXiv & GitHub |
+| DIGRA | SIGMOD 2025 & GitHub |
+| UNIFY | VLDB 2025 |
+| FreshDiskANN / DiskANN | arXiv 2105.09613 & Microsoft GitHub[cite:136] |
+| HQANN | CIKM 2022 (ACM DL) |
+| NaviX | VLDB 2025 (PVLDB) |
+| Curator | arXiv 2401.07119 |
+| PASE | SIGMOD 2020 (ACM DL) |
+| FANNS Benchmark paper | ETH SPCL publication page[cite:134] |
+| SPCL/arxiv-for-fanns-medium dataset | HuggingFace dataset page[cite:114] |
+
+This matrix is intended as a **living document**. As new temporal‑ or filter‑aware ANN methods appear, they can be slotted into the tables and capability matrix above by filling in their temporal and filter characteristics.
