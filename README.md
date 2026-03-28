@@ -1,6 +1,12 @@
 # TACO-GANN: Temporal And Category Optimised Graph Approximate Nearest Neighbour Search
 
-TANNS‑C is a single‑graph approximate nearest neighbour (ANN) index that natively supports **temporal range** and **categorical** predicates on large vector datasets.
+TACO-GANN is a single‑graph approximate nearest neighbour (ANN) index that natively supports **time‑range filtering** and **category filtering** on large vector datasets. It answers queries of the form “k‑nearest neighbors at time *t* with category *C*” without resorting to brute‑force post‑filtering.
+
+TACO-GANN is designed for users who need:
+
+- Time-aware ANN search with **temporal filters** (sliding or fixed time windows)
+- Category-aware ANN search with **first-class category filters**
+- Combined **time and category filtering** over high-dimensional vectors (e.g., ArXiv embeddings with subject areas and timestamps)
 
 It combines:
 
@@ -9,18 +15,20 @@ It combines:
 
 The target query is:
 
-> “Top‑k nearest neighbours of vector **q**, within category **C**, valid in time window **[t_start, t_end]**.”
+> “Top‑k nearest neighbours of vector **q**, with category **C**, valid in time window **[t_start, t_end]**.”
 
 The reference dataset is **SPCL/arxiv‑for‑fanns‑medium** (100K ArXiv embeddings with subject categories and submission days)[cite:114].
+text
 
 ---
 
 ## Table of Contents
 
+- [Use Cases](#use-cases)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [Dataset](#dataset)
-- [Implemented Methods](#implemented-methods)
+- [Implemented Methods for Time + Category Filtering](#Implemented-Methods-for-Time-and-Category-Filtering)
 - [Benchmark Pipeline](#benchmark-pipeline)
 - [Figures](#figures)
 - [Limitations and TODOs](#limitations-and-todos)
@@ -28,6 +36,12 @@ The reference dataset is **SPCL/arxiv‑for‑fanns‑medium** (100K ArXiv embed
 - [License](#license)
 
 ---
+
+## Use Cases
+
+- Time-filtered semantic search over documents (e.g., “papers similar to this, in cs.CL, from 2020–2022”)
+- Temporal recommendation with category constraints (e.g., “similar items in category X purchased in the last 7 days”)
+- Any vector database workload that needs **temporal + categorical filters** without materialising per-filter indices
 
 ## Quick Start
 
@@ -105,15 +119,15 @@ python download_data.py --output-dir data
 
 ---
 
-## Implemented Methods
+## Implemented Methods for Time and Category Filtering
 
 The current benchmark compares **three** methods:
 
-| Internal name | Description |
-| --- | --- |
-| `PostFilter-HNSW` | Vanilla HNSW (no metadata). Search over all vectors, then post-filter by category and time window using a mask. |
-| `TANNS+Post` | Timestamp graph + HNT (ICDE'25 TANNS) with category applied as a post-filter at query time. |
-| `TACO-GANN` | This work: single Filtered‑Vamana graph with per‑label ST‑connectivity, plus per‑node HNT for temporal reconstruction and structural category filtering at search time. |
+| Internal name   | Description |
+| ---             | --- |
+| `PostFilter-HNSW` | Vanilla HNSW (no metadata). Search over all vectors, then apply **time filter** and **category filter** as a post-filter mask. |
+| `TANNS+Post`      | Timestamp graph + HNT (ICDE'25 TANNS) with **temporal k-NN** support, but **category filtering** is applied only as a post-filter at query time. |
+| `TACO-GANN`       | This work: single Filtered‑Vamana graph with per‑label ST‑connectivity and per‑node HNT, enabling **joint temporal and category-aware ANN search** at query time. |
 
 Older baselines (ACORN, Filtered‑DiskANN, ablative pillars P1/P2/P3) are **not** wired into this repo yet; the code focuses on a clean comparison between:
 
