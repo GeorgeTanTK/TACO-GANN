@@ -828,6 +828,9 @@ class TANNS:
             sims = [(v, float(np.dot(q_norm, self.vectors[v]))) for v in valid_set]
             sims.sort(key=lambda x: -x[1])
             top_k = [v for v, _ in sims[:k]]
+            # Remap internal IDs → original dataset IDs
+            if hasattr(self, '_id_map'):
+                top_k = [self._id_map[nid] for nid in top_k]
             return np.array(top_k, dtype=np.int64), 0
 
         # Seeds: entry_point (if alive) + top-3 nearest from valid_set
@@ -853,14 +856,20 @@ class TANNS:
         filtered_sims.sort(key=lambda x: -x[1])
         top_k = [nid for nid, _ in filtered_sims[:k]]
 
+        # Remap internal IDs → original dataset IDs
+        if hasattr(self, '_id_map'):
+            top_k = [self._id_map[nid] for nid in top_k]
+
         return np.array(top_k, dtype=np.int64), visited
 
     # ── Build ───────────────────────────────────────────────────────
 
-    def build(self, vectors: np.ndarray, cat_sets_list: List[Set[str]], start_days_list: List[int]):
+    def build(self, vectors: np.ndarray, cat_sets_list, start_days_list):
         """Build TANNS index from sorted data."""
+        start_days_list = [int(d) for d in start_days_list]  # normalize numpy → int
         # Sort by start_day ascending
         order = sorted(range(len(start_days_list)), key=lambda i: start_days_list[i])
+        self._id_map = list(order)  # internal_id → original_id
 
         total = len(order)
         for idx, i in enumerate(order):

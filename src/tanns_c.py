@@ -703,10 +703,10 @@ class TANNSC:
         if norm > 0:
             q = q / norm
 
-        # 2. Compute valid set
+        # 2. Compute valid set: start_days[v] in [t_start, t_end] and not expired
         valid_set = []
         for v in self.cat_index.get(C, []):
-            if self.start_days[v] <= t_end:
+            if self.start_days[v] >= t_start and self.start_days[v] <= t_end:
                 exp = self.expire_days[v]
                 if exp is None or exp > t_start:
                     valid_set.append(v)
@@ -714,50 +714,89 @@ class TANNSC:
         if not valid_set:
             return np.array([], dtype=np.int64), 0
 
-        # 3. Brute force ONLY for genuinely tiny valid sets
-        if len(valid_set) <= k:
-            sims = [(float(np.dot(q, self.vectors[v])), v) for v in valid_set]
-            sims.sort(key=lambda x: -x[0])
-            return np.array([v for _, v in sims[:k]], dtype=np.int64), len(valid_set)
+        valid_set_s = set(valid_set)
+        # After you build valid_set
+        mid_t = (t_start + t_end) // 2
 
-        # 4. Seeds: medoid + top-3 from valid_set by dot product (deterministic)
+        # 3. Seeds: category medoid if live, else first valid node
         seeds: List[int] = []
         if C in self.cat_medoid:
-            seeds.append(self.cat_medoid[C])
+            med = self.cat_medoid[C]
+            if self.expire_days[med] is None:
+                seeds.append(med)
+        if valid_set:
+            # restrict to a small prefix or random subset to keep cost bounded
+            sample = valid_set if len(valid_set) <= 128 else valid_set[:128]
+            closest = sorted(sample, key=lambda v: abs(self.start_days[v] - mid_t))
+            seed_set = set(seeds)
+            for v in closest[:2]:
+                if v not in seed_set:
+                    seeds.append(v)
+                    seed_set.add(v)
 
-        valid_vecs = np.array([self.vectors[v] for v in valid_set], dtype=np.float32)
-        dots = valid_vecs @ q
-        n_top = min(3, len(valid_set))
-        top_indices = np.argsort(-dots)[:n_top]
-        seed_set = set(seeds)
-        for ri in top_indices:
-            vid = valid_set[int(ri)]
-            if vid not in seed_set:
-                seeds.append(vid)
-                seed_set.add(vid)
+        # Fallback
+        if not seeds:
+            seeds.append(valid_set[0])
 
-        # 5. Beam search with HNT
+        # 4. Primary beam search with HNT (temporal + category filtering)
         results, visited_count = self._greedy_search(
             q, seeds, ef,
             t_start=t_start, t_end=t_end,
             cat_filter=C, use_hnt=True,
         )
-
-        # 6. Filter to valid set and return top-k — NO brute-force supplement
-        valid_set_s = set(valid_set)
         filtered = [nid for nid in results if nid in valid_set_s]
 
-        # Sort by cosine similarity descending, return top-k
-        filtered_scored = [(float(np.dot(q, self.vectors[v])), v) for v in filtered]
-        filtered_scored.sort(key=lambda x: -x[0])
-        return np.array([v for _, v in filtered_scored[:k]], dtype=np.int64), visited_count
+        # 5. ACORN-style bounded fallback: 2-hop expansion if < k results
+        if len(filtered) < k:
+            frontier = filtered if filtered else list(seeds)
+            seen: Set[int] = set(results)  # nodes already touched
+            max_extra = 300                # hard cap on extra candidates
+            extra_candidates: List[int] = []
+
+            for _ in range(2):  # up to 2 hops
+                if not frontier or len(extra_candidates) >= max_extra:
+                    break
+                next_frontier: List[int] = []
+                for u in frontier:
+                    nbrs = self._hnt_reconstruct_window(u, t_start, t_end, C)
+                    for v in nbrs:
+                        if v in seen:
+                            continue
+                        seen.add(v)
+                        visited_count += 1
+                        next_frontier.append(v)
+                        if v in valid_set_s:
+                            extra_candidates.append(v)
+                            if len(extra_candidates) >= max_extra:
+                                break
+                    if len(extra_candidates) >= max_extra:
+                        break
+                frontier = next_frontier
+
+            # merge extra candidates not already in filtered
+            extra_unique = [v for v in extra_candidates if v not in filtered]
+            filtered.extend(extra_unique)
+
+        if not filtered:
+            return np.array([], dtype=np.int64), visited_count
+
+        # 6. Rank by cosine similarity within filtered set and return top-k
+        scored = [(float(np.dot(q, self.vectors[v])), v) for v in filtered]
+        scored.sort(key=lambda x: -x[0])
+        top_k = [v for _, v in scored[:k]]
+
+        # Remap internal IDs → original dataset IDs, if present
+        if hasattr(self, "_id_map"):
+            top_k = [self._id_map[nid] for nid in top_k]
+
+        return np.array(top_k, dtype=np.int64), visited_count
 
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
 
-    def build(self, vectors: np.ndarray, cat_sets_list: List[List[str]],
-              start_days_list: List[int]):
+    def build(self, vectors: np.ndarray, cat_sets_list,
+              start_days_list):
         """Build index by inserting all nodes in chronological order.
 
         Sort by start_day ascending, call insert for each in order.
@@ -765,11 +804,13 @@ class TANNSC:
         Print progress every 10,000 nodes.
         No _compact_cat_index at build time (no deletions have occurred).
         """
+        start_days_list = [int(d) for d in start_days_list]  # normalize numpy → int
         n = len(vectors)
         assert n == len(cat_sets_list) == len(start_days_list)
 
         # Sort by start_day ascending
         order = sorted(range(n), key=lambda i: start_days_list[i])
+        self._id_map = list(order)  # internal_id → original_id
 
         for count, idx in enumerate(order):
             cats = set(cat_sets_list[idx])

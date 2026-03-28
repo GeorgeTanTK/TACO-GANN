@@ -33,6 +33,8 @@ from matplotlib.patches import FancyBboxPatch
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 logger = logging.getLogger(__name__)
+# reduce noise from fontTools during PDF saving
+logging.getLogger("fontTools.subset").setLevel(logging.WARNING)
 
 # ─── Global style ────────────────────────────────────────────────────
 
@@ -144,68 +146,68 @@ def _plot_series(ax, data, y_key):
         )
 
 
-# ═════════════════════════════════════════════════════════════════════
-# Figure 1 — System Architecture Diagram
-# ═════════════════════════════════════════════════════════════════════
+# # ═════════════════════════════════════════════════════════════════════
+# # Figure 1 — System Architecture Diagram
+# # ═════════════════════════════════════════════════════════════════════
 
-def fig1_architecture(outdir):
-    logger.info("Figure 1: Architecture diagram...")
-    fig, ax = plt.subplots(figsize=(3.5, 3.2))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 7.5)
-    ax.axis("off")
+# def fig1_architecture(outdir):
+#     logger.info("Figure 1: Architecture diagram...")
+#     fig, ax = plt.subplots(figsize=(3.5, 3.2))
+#     ax.set_xlim(0, 10)
+#     ax.set_ylim(0, 7.5)
+#     ax.axis("off")
 
-    box_kw = dict(boxstyle="round,pad=0.3", linewidth=1.2)
+#     box_kw = dict(boxstyle="round,pad=0.3", linewidth=1.2)
 
-    # Input
-    ax.add_patch(FancyBboxPatch((0.3, 6.2), 9.2, 0.9, **box_kw,
-                                facecolor="#E8E8E8", edgecolor="#333"))
-    ax.text(5.0, 6.65, "Query: (q, C, [t_start, t_end], k)",
-            ha="center", va="center", fontsize=9, fontweight="bold")
+#     # Input
+#     ax.add_patch(FancyBboxPatch((0.3, 6.2), 9.2, 0.9, **box_kw,
+#                                 facecolor="#E8E8E8", edgecolor="#333"))
+#     ax.text(5.0, 6.65, "Query: (q, C, [t_start, t_end], k)",
+#             ha="center", va="center", fontsize=9, fontweight="bold")
 
-    # Two pillars: Category-Aware Graph | Temporal HNT
-    pillar_info = [
-        ("#CCE5FF", "Category-Aware Graph\n(Filtered-Vamana)",
-         "Per-cat medoid entry points\nST-connectivity per label\nAlpha-blended scoring"),
-        ("#D4EDDA", "Temporal HNT\n(per-node history)",
-         "Flat sorted HNTEntry list\nbisect_right reconstruction\nTombstone-safe history"),
-    ]
-    x_positions = [0.5, 5.2]
-    widths = [4.3, 4.3]
-    for (x, w), (color, title, desc) in zip(
-        zip(x_positions, widths), pillar_info
-    ):
-        ax.add_patch(FancyBboxPatch((x, 2.4), w, 3.4, **box_kw,
-                                    facecolor=color, edgecolor="#555"))
-        ax.text(x + w/2, 5.1, title, ha="center", va="center",
-                fontsize=7.5, fontweight="bold", linespacing=1.3)
-        ax.text(x + w/2, 3.6, desc, ha="center", va="center",
-                fontsize=6.2, color="#444", linespacing=1.3)
-        # Arrow from input
-        ax.annotate("", xy=(x + w/2, 5.8), xytext=(x + w/2, 6.2),
-                    arrowprops=dict(arrowstyle="->", color="#555", lw=1.2))
+#     # Two pillars: Category-Aware Graph | Temporal HNT
+#     pillar_info = [
+#         ("#CCE5FF", "Category-Aware Graph\n(Filtered-Vamana)",
+#          "Per-cat medoid entry points\nST-connectivity per label\nAlpha-blended scoring"),
+#         ("#D4EDDA", "Temporal HNT\n(per-node history)",
+#          "Flat sorted HNTEntry list\nbisect_right reconstruction\nTombstone-safe history"),
+#     ]
+#     x_positions = [0.5, 5.2]
+#     widths = [4.3, 4.3]
+#     for (x, w), (color, title, desc) in zip(
+#         zip(x_positions, widths), pillar_info
+#     ):
+#         ax.add_patch(FancyBboxPatch((x, 2.4), w, 3.4, **box_kw,
+#                                     facecolor=color, edgecolor="#555"))
+#         ax.text(x + w/2, 5.1, title, ha="center", va="center",
+#                 fontsize=7.5, fontweight="bold", linespacing=1.3)
+#         ax.text(x + w/2, 3.6, desc, ha="center", va="center",
+#                 fontsize=6.2, color="#444", linespacing=1.3)
+#         # Arrow from input
+#         ax.annotate("", xy=(x + w/2, 5.8), xytext=(x + w/2, 6.2),
+#                     arrowprops=dict(arrowstyle="->", color="#555", lw=1.2))
 
-    # Merge label
-    ax.text(5.0, 1.95, "Filtered Beam Search",
-            ha="center", va="center", fontsize=7.5, fontweight="bold",
-            fontstyle="italic", color="#333",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
-                      edgecolor="#999", linewidth=0.5))
+#     # Merge label
+#     ax.text(5.0, 1.95, "Filtered Beam Search",
+#             ha="center", va="center", fontsize=7.5, fontweight="bold",
+#             fontstyle="italic", color="#333",
+#             bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
+#                       edgecolor="#999", linewidth=0.5))
 
-    # Arrows from pillars to merge
-    for x, w in zip(x_positions, widths):
-        ax.annotate("", xy=(5.0, 2.1), xytext=(x + w/2, 2.4),
-                    arrowprops=dict(arrowstyle="->", color="#555", lw=1.0))
+#     # Arrows from pillars to merge
+#     for x, w in zip(x_positions, widths):
+#         ax.annotate("", xy=(5.0, 2.1), xytext=(x + w/2, 2.4),
+#                     arrowprops=dict(arrowstyle="->", color="#555", lw=1.0))
 
-    # Output
-    ax.add_patch(FancyBboxPatch((2.0, 0.3), 5.8, 0.9, **box_kw,
-                                facecolor="#E8E8E8", edgecolor="#333"))
-    ax.text(5.0, 0.75, "Output: Top-k filtered nearest neighbors",
-            ha="center", va="center", fontsize=9, fontweight="bold")
-    ax.annotate("", xy=(5.0, 1.3), xytext=(5.0, 1.9),
-                arrowprops=dict(arrowstyle="->", color="#555", lw=1.2))
+#     # Output
+#     ax.add_patch(FancyBboxPatch((2.0, 0.3), 5.8, 0.9, **box_kw,
+#                                 facecolor="#E8E8E8", edgecolor="#333"))
+#     ax.text(5.0, 0.75, "Output: Top-k filtered nearest neighbors",
+#             ha="center", va="center", fontsize=9, fontweight="bold")
+#     ax.annotate("", xy=(5.0, 1.3), xytext=(5.0, 1.9),
+#                 arrowprops=dict(arrowstyle="->", color="#555", lw=1.2))
 
-    save_fig(fig, "fig1_architecture", outdir)
+#     save_fig(fig, "fig1_architecture", outdir)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -467,7 +469,7 @@ if __name__ == "__main__":
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    fig1_architecture(args.output_dir)
+    # fig1_architecture(args.output_dir)
     fig2_recall10_vs_qps(args.results_dir, args.output_dir)
     fig3_recall100_vs_qps(args.results_dir, args.output_dir)
     fig4_visited_vs_recall(args.results_dir, args.output_dir)

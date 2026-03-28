@@ -5,11 +5,13 @@ set -euo pipefail
 
 DATA_DIR="data"
 SKIP_DOWNLOAD=false
+SPLIT="small"   # default
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-download) SKIP_DOWNLOAD=true; shift ;;
     --data-dir) DATA_DIR="$2"; shift 2 ;;
+    --split) SPLIT="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -22,12 +24,14 @@ echo " TANNS-C Benchmark Pipeline"
 echo "========================================"
 echo "Repo root : $REPO_ROOT"
 echo "Data dir  : $DATA_DIR"
+echo "Split     : $SPLIT"
 echo ""
+
 
 # Step 1 — Download dataset
 if [ "$SKIP_DOWNLOAD" = false ]; then
   echo "[1/5] Downloading arxiv-for-FANNS dataset..."
-  python download_data.py --out-dir "$DATA_DIR"
+  python download_data.py --out-dir "$DATA_DIR" --split "$SPLIT"
 else
   echo "[1/5] Skipping download (--skip-download)"
 fi

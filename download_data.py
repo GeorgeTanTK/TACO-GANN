@@ -9,9 +9,10 @@ Usage:
 import argparse
 import os
 import sys
-
 import logging
+
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 def main():
     parser = argparse.ArgumentParser(description="Download arxiv-for-FANNS dataset")
@@ -43,8 +44,6 @@ def main():
     else:
         repo_id = "SPCL/arxiv-for-fanns-large"
 
-    repo_id = "SPCL/arxiv-for-fanns-small"
-
     files = [
         "database_vectors.fvecs",
         "database_attributes.jsonl",
@@ -55,7 +54,7 @@ def main():
         if os.path.exists(dest):
             logger.info(f"  Already exists: {dest}")
             continue
-        logger.info(f"  Downloading {filename}...")
+        logger.info(f"  Downloading {filename} from {repo_id}...")
         try:
             path = hf_hub_download(
                 repo_id=repo_id,
@@ -70,7 +69,7 @@ def main():
             sys.exit(1)
 
     logger.info(f"\nDataset ready in {args.out_dir}/")
-    logger.info("Next: python run_all.sh  OR  python benchmarks/evaluate_all.py --data-dir data/")
+    logger.info("Next: bash run_all.sh  OR  python benchmarks/evaluate_all.py --data-dir data/")
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
 {
   "PostFilter": {
-    "build_time_s": 0.417,
-    "peak_mem_mb": 0.02
+    "build_time_s": 82.665,
+    "peak_mem_mb": 1.53
   },
   "TANNS+Post": {
-    "build_time_s": 6.167,
-    "peak_mem_mb": 24.87
+    "build_time_s": 2195.533,
+    "peak_mem_mb": 1852.51
   },
   "TANNS-C": {
-    "build_time_s": 45.856,
-    "peak_mem_mb": 24.1
+    "build_time_s": 3906.289,
+    "peak_mem_mb": 1942.44
   }
 }

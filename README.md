@@ -39,11 +39,11 @@ python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
-# 2. Download the SPCL/arxiv-for-fanns-medium dataset into data/
-python download_data.py --output-dir data
+# 2. Download the SPCL/arxiv-for-fanns dataset into data/ Option (small/medium)/ default small
+python download_data.py --out-dir data 
 
-# 3. Run the full benchmark pipeline (ground truth → baselines → figs)
-bash run_all.sh
+# 3. Run the full benchmark pipeline (ground truth → baselines → figs) anything after split optional
+bash run_all.sh --split small
 ```
 
 Results are written to `results/` and figures to `figures/`.

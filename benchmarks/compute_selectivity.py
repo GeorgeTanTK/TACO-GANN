@@ -119,9 +119,17 @@ def main():
     logger.info(f"Loading dataset from {args.data_dir}")
     V = load_fvecs(vec_path)
     cats, udays = load_metadata(attr_path)
-    queries = generate_queries(V, cats, udays, n_queries=NQ, seed=42)
+
+    # Prefer queries saved in state (avoids seed / version mismatch)
+    if "qs" in state:
+        queries = state["qs"]
+    else:
+        queries = generate_queries(V, cats, udays, n_queries=NQ, seed=42)
 
     assert V.shape[0] == N, f"V.shape[0]={V.shape[0]} but N={N}"
+
+    # Normalize udays for TANNS / TANNS-C builds (numpy int64 → Python int)
+    udays_list = [int(d) for d in udays]
 
     # ── Compute per-query selectivity ────────────────────────────────
     # |valid_set_q| = Ms[q].sum(), selectivity as percentage of dataset
@@ -143,11 +151,11 @@ def main():
 
     # 2. TANNS (timestamp graph, category as post-filter)
     tanns = TANNS()
-    tanns.build(V, cats, udays)
+    tanns.build(V, cats, udays_list)
 
     # 3. TANNS-C (full temporal + category-aware)
     tannsc = TANNSC()
-    tannsc.build(V, cats, udays)
+    tannsc.build(V, cats, udays_list)
 
     # ── Evaluate per query ───────────────────────────────────────────
     methods = ["PostFilter", "TANNS+Post", "TANNS-C"]
@@ -176,16 +184,22 @@ def main():
         per_query_recall["PostFilter"][qi] = recall_at_k_single(filtered, gt[qi], 10)
 
         # 2) TANNS + post-filter
+        #    TANNS is a point-in-time index.  Query at t_end so its
+        #    valid_set ({v: start_days[v] <= t_end}) is a superset of the
+        #    GT valid_set ({v: t_start <= udays[v] <= t_end}), then
+        #    post-filter with the range mask.
         ids_t, _visited_t = tanns.query(
-            qv, cat, ts, k=10, ef=args.ef_tanns
-        )  # TANNS already does category+time + post-filter
-        per_query_recall["TANNS+Post"][qi] = recall_at_k_single(ids_t, gt[qi], 10)
+            qv, cat, te, k=10, ef=args.ef_tanns
+        )
+        ids_t_filtered = [int(x) for x in ids_t if mask[int(x)]][:10]
+        per_query_recall["TANNS+Post"][qi] = recall_at_k_single(ids_t_filtered, gt[qi], 10)
 
         # 3) TANNS-C
         ids_c, _visited_c = tannsc.query(
             qv, cat, ts, te, k=10, ef=args.ef_tannsc
         )
-        per_query_recall["TANNS-C"][qi] = recall_at_k_single(ids_c, gt[qi], 10)
+        ids_c_filtered = [int(x) for x in ids_c if mask[int(x)]][:10]
+        per_query_recall["TANNS-C"][qi] = recall_at_k_single(ids_c_filtered, gt[qi], 10)
 
         if qi % 200 == 0:
             logger.info(f" processed {qi}/{NQ}")
