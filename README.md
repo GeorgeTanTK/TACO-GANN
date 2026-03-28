@@ -1,4 +1,4 @@
-# TANNS-C: Temporal- and Category-Aware Approximate Nearest Neighbour Search
+# TACO-GANN: Temporal And Category Optimised Graph Approximate Nearest Neighbour Search
 
 TANNS‑C is a single‑graph approximate nearest neighbour (ANN) index that natively supports **temporal range** and **categorical** predicates on large vector datasets.
 
@@ -62,6 +62,7 @@ TANNS-C/
 │   ├── tanns_c.py              # TANNS-C index (Filtered-Vamana + HNT)
 │   └── baselines/
 │       ├── postfilter.py       # HNSW + dual post-filter (category AND time)
+|       ├── prefilter.py        # HNSW + dual pre-filter (category AND time)
 │       └── tanns_post_filtering.py
 │                               # TANNS implementation (ICDE'25 style)
 ├── benchmarks/
@@ -241,10 +242,10 @@ If you use this code or ideas in scientific work, please cite:
 
 ```bibtex
 @misc{tanns-c-2026,
-  title   = {{TANNS-C}: Temporal- and Category-Aware Approximate Nearest Neighbour Search},
+  title   = {{TANNS-C}: Temporal and Category-Aware Approximate Nearest Neighbour Search},
   author  = {Tan, T.K.},
   year    = {2026},
-  note    = {HKUST Technical Report}
+  note    = {HKUST}
 }
 ```
 
