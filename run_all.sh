@@ -46,11 +46,6 @@ echo ""
 echo "[3/5] Evaluating baselines..."
 python -m benchmarks.evaluate_all --data-dir "$DATA_DIR" --output-dir results
 
-# Step 4 — Run ablation study (TACO-GANN variants)
-# echo ""
-# echo "[4/6] Running ablation study..."
-# python -m benchmarks.run_ablation --data-dir "$DATA_DIR" --results-dir results
-
 # Step 4 — Compute selectivity recall & construction costs
 echo ""
 echo "[4/5] Computing selectivity and construction costs..."
