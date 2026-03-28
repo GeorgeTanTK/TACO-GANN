@@ -11,7 +11,7 @@
   "methods": [
     "PostFilter",
     "TANNS+Post",
-    "TANNS-C"
+    "TACO-GANN"
   ],
   "results": {
     "PostFilter": {
@@ -74,7 +74,7 @@
         "count": 27
       }
     },
-    "TANNS-C": {
+    "TACO-GANN": {
       "<0.5%": {
         "mean_recall": 0.7759,
         "count": 29

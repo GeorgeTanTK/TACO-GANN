@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    parser = argparse.ArgumentParser(description="Compute ground truth for TANNS-C benchmarks")
+    parser = argparse.ArgumentParser(description="Compute ground truth for TACO-GANN benchmarks")
     parser.add_argument("--data-dir", default=os.path.join(REPO_ROOT, "data"),
                         help="Directory containing dataset files")
     parser.add_argument("--output-dir", default=os.path.join(REPO_ROOT, "results"),

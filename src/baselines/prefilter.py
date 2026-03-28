@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-prefilter.py — Pre-Filtering Baseline for TANNS-C Evaluation.
+prefilter.py — Pre-Filtering Baseline for TACO-GANN Evaluation.
 
 Strategy:
   1. At query time, first filter the database to keep only vectors matching

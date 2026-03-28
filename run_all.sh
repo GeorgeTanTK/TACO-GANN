@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_all.sh — End-to-end TANNS-C benchmark pipeline
+# run_all.sh — End-to-end TACO-GANN benchmark pipeline
 # Usage: bash run_all.sh [--skip-download] [--data-dir DATA_DIR]
 set -euo pipefail
 
@@ -20,7 +20,7 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_ROOT"
 
 echo "========================================"
-echo " TANNS-C Benchmark Pipeline"
+echo " TACO-GANN Benchmark Pipeline"
 echo "========================================"
 echo "Repo root : $REPO_ROOT"
 echo "Data dir  : $DATA_DIR"
@@ -46,7 +46,7 @@ echo ""
 echo "[3/5] Evaluating baselines..."
 python -m benchmarks.evaluate_all --data-dir "$DATA_DIR" --output-dir results
 
-# Step 4 — Run ablation study (TANNS-C variants)
+# Step 4 — Run ablation study (TACO-GANN variants)
 # echo ""
 # echo "[4/6] Running ablation study..."
 # python -m benchmarks.run_ablation --data-dir "$DATA_DIR" --results-dir results

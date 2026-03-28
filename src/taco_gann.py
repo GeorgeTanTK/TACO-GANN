@@ -1,5 +1,5 @@
 """
-TANNS-C: Temporal- and Category-Aware Approximate Nearest Neighbor Search Index
+TACO-GANN: Temporal- and Category-Aware Approximate Nearest Neighbor Search Index
 
 A single navigable graph built with Filtered-Vamana (category-aware,
 ST-connectivity guaranteed per label) and per-node Historic Neighbor Trees
@@ -120,14 +120,14 @@ class HNTEntry:
 
 
 # ---------------------------------------------------------------------------
-# TANNS-C Index
+# TACO-GANN Index
 # ---------------------------------------------------------------------------
 
 # DiskANN-style pruning scaling factor (separate from category alpha)
 PRUNE_ALPHA = 1.2
 
 
-class TANNSC:
+class TACOGANN:
     def __init__(self, M: int = 16, ef_construction: int = 100, alpha: float = 0.3):
         self.M = M
         self.ef_construction = ef_construction

@@ -1,1 +1,1 @@
-"""TANNS-C: Temporal- and Category-Aware ANN Index."""
+"""TACO-GANN: Temporal And Category Optimised ANN Index."""

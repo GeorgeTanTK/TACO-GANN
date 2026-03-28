@@ -22,7 +22,7 @@ sys.path.insert(0, REPO_ROOT)
 
 from src.data_loader import load_fvecs, load_metadata, TOP10_CATEGORIES
 from src.baselines.tanns_post_filtering import TANNS
-from src.tanns_c import TANNSC
+from src.taco_gann import TACOGANN
 
 logger = logging.getLogger(__name__)
 
@@ -107,17 +107,17 @@ def main():
     # results["FDiskANN+Post"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
     # del fdann
 
-    # 5. TANNS-C (category-aware graph + snapshots)
-    logger.info("Building TANNS-C...")
+    # 5. TACO-GANN (category-aware graph + snapshots)
+    logger.info("Building TACO-GANN...")
     tracemalloc.start()
     t0 = time.time()
-    tannsc = TANNSC()
-    tannsc.build(V, cats, udays)
+    tacogann = TACOGANN()
+    tacogann.build(V, cats, udays)
     build_time = time.time() - t0
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-    results["TANNS-C"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
-    del tannsc
+    results["TACO-GANN"] = {"build_time_s": round(build_time, 3), "peak_mem_mb": round(peak / 1024**2, 2)}
+    del tacogann
 
     # ── Save ─────────────────────────────────────────────────────────
     out_path = os.path.join(args.results_dir, "_construction_costs.json")

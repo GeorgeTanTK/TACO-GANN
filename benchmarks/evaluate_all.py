@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-evaluate_all.py — Full evaluation harness for TANNS-C baselines.
+evaluate_all.py — Full evaluation harness for TACO-GANN baselines.
 
 Runs both PostFilter (HNSW) and PreFilter (brute-force) baselines on the
 arxiv-for-FANNS dataset, measuring recall@10, recall@100, QPS, and latency.
@@ -60,7 +60,7 @@ def recall_at_k(retrieved_list, gt_list, k):
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    parser = argparse.ArgumentParser(description="TANNS-C Baseline Evaluation")
+    parser = argparse.ArgumentParser(description="TACO-GANN Baseline Evaluation")
     parser.add_argument("--data-dir", default=os.path.join(REPO_ROOT, "data"),
                         help="Directory containing dataset files")
     parser.add_argument("--n-queries", type=int, default=5000)

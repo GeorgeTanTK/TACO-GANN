@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-compute_selectivity.py — Per-selectivity-bin recall for TANNS-C baselines.
+compute_selectivity.py — Per-selectivity-bin recall for TACO-GANN baselines.
 
 Methods:
   - PostFilter-HNSW: HNSW over all vectors + dual post-filter (category AND time)
   - TANNS+Post:      TANNS timestamp graph + category post-filter
-  - TANNS-C:         Full TANNS-C (category-aware + temporal HNT)
+  - TACO-GANN:         Full TACO-GANN (category-aware + temporal HNT)
 
 Bins queries by filter selectivity (% of dataset matching C × [t_start,t_end]),
 then computes recall@10 for each method within each bin.
@@ -38,7 +38,7 @@ sys.path.insert(0, REPO_ROOT)
 
 from src.data_loader import load_fvecs, load_metadata, generate_queries
 from src.baselines.tanns_post_filtering import TANNS
-from src.tanns_c import TANNSC
+from src.taco_gann import TACOGANN
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def main():
     )
 
     parser = argparse.ArgumentParser(
-        description="Compute per-selectivity-bin recall for TANNS-C baselines"
+        description="Compute per-selectivity-bin recall for TACO-GANN baselines"
     )
     parser.add_argument(
         "--data-dir",
@@ -85,10 +85,10 @@ def main():
         help="ef_search for TANNS+Post baseline",
     )
     parser.add_argument(
-        "--ef-tannsc",
+        "--ef-tacogann",
         type=int,
         default=200,
-        help="ef_search for TANNS-C baseline",
+        help="ef_search for TACO-GANN baseline",
     )
     args = parser.parse_args()
 
@@ -128,7 +128,7 @@ def main():
 
     assert V.shape[0] == N, f"V.shape[0]={V.shape[0]} but N={N}"
 
-    # Normalize udays for TANNS / TANNS-C builds (numpy int64 → Python int)
+    # Normalize udays for TANNS / TACO-GANN builds (numpy int64 → Python int)
     udays_list = [int(d) for d in udays]
 
     # ── Compute per-query selectivity ────────────────────────────────
@@ -153,12 +153,12 @@ def main():
     tanns = TANNS()
     tanns.build(V, cats, udays_list)
 
-    # 3. TANNS-C (full temporal + category-aware)
-    tannsc = TANNSC()
-    tannsc.build(V, cats, udays_list)
+    # 3. TACO-GANN (full temporal + category-aware)
+    tacogann = TACOGANN()
+    tacogann.build(V, cats, udays_list)
 
     # ── Evaluate per query ───────────────────────────────────────────
-    methods = ["PostFilter", "TANNS+Post", "TANNS-C"]
+    methods = ["PostFilter", "TANNS+Post", "TACO-GANN"]
     per_query_recall = {m: [None] * NQ for m in methods}
 
     logger.info("Running per-query evaluation...")
@@ -194,12 +194,12 @@ def main():
         ids_t_filtered = [int(x) for x in ids_t if mask[int(x)]][:10]
         per_query_recall["TANNS+Post"][qi] = recall_at_k_single(ids_t_filtered, gt[qi], 10)
 
-        # 3) TANNS-C
-        ids_c, _visited_c = tannsc.query(
-            qv, cat, ts, te, k=10, ef=args.ef_tannsc
+        # 3) TACO-GANN
+        ids_c, _visited_c = tacogann.query(
+            qv, cat, ts, te, k=10, ef=args.ef_tacogann
         )
         ids_c_filtered = [int(x) for x in ids_c if mask[int(x)]][:10]
-        per_query_recall["TANNS-C"][qi] = recall_at_k_single(ids_c_filtered, gt[qi], 10)
+        per_query_recall["TACO-GANN"][qi] = recall_at_k_single(ids_c_filtered, gt[qi], 10)
 
         if qi % 200 == 0:
             logger.info(f" processed {qi}/{NQ}")

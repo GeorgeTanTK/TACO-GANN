@@ -33,8 +33,8 @@ The reference dataset is **SPCL/arxiv‑for‑fanns‑medium** (100K ArXiv embed
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/georgetktan/tanns-c.git
-cd tanns-c
+git clone https://github.com/georgetktan/taco-gann.git
+cd taco-gann
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
@@ -53,13 +53,13 @@ Results are written to `results/` and figures to `figures/`.
 ## Project Structure
 
 ```text
-TANNS-C/
+TACO-GANN/
 ├── run_all.sh                  # End-to-end pipeline script
 ├── download_data.py            # Fetch SPCL/arxiv-for-fanns-medium from HuggingFace
 ├── requirements.txt            # Python dependencies
 ├── src/
 │   ├── data_loader.py          # Dataset loading, metadata, query generation
-│   ├── tanns_c.py              # TANNS-C index (Filtered-Vamana + HNT)
+│   ├── taco_gann.py              # TACO-GANN index (Filtered-Vamana + HNT)
 │   └── baselines/
 │       ├── postfilter.py       # HNSW + dual post-filter (category AND time)
 |       ├── prefilter.py        # HNSW + dual pre-filter (category AND time)
@@ -69,12 +69,12 @@ TANNS-C/
 │   ├── compute_ground_truth.py # Exact k-NN ground truth for (C, [t_s, t_e]) queries
 │   ├── compute_selectivity.py  # Per-selectivity-bin recall for each method
 │   ├── measure_construction.py # Index build time / peak memory
-│   ├── run_baselines.py        # Run HNSW PostFilter, TANNS+Post, TANNS-C
+│   ├── run_baselines.py        # Run HNSW PostFilter, TANNS+Post, TACO-GANN
 │   └── generate_figures.py     # Figures (PNG + PDF)
 ├── results/                    # CSV / JSON outputs (created by scripts)
 ├── figures/                    # Generated figures
 ├── docs/
-│   └── TANNS-C-Design-Summary-and-Novelty-Brief.md
+│   └── TACO-GANN-Design-Summary-and-Novelty-Brief.md
 │                               # Design + novelty write-up
 └── data/                       # Dataset files (populated by download)
 ```
@@ -113,7 +113,7 @@ The current benchmark compares **three** methods:
 | --- | --- |
 | `PostFilter-HNSW` | Vanilla HNSW (no metadata). Search over all vectors, then post-filter by category and time window using a mask. |
 | `TANNS+Post` | Timestamp graph + HNT (ICDE'25 TANNS) with category applied as a post-filter at query time. |
-| `TANNS-C` | This work: single Filtered‑Vamana graph with per‑label ST‑connectivity, plus per‑node HNT for temporal reconstruction and structural category filtering at search time. |
+| `TACO-GANN` | This work: single Filtered‑Vamana graph with per‑label ST‑connectivity, plus per‑node HNT for temporal reconstruction and structural category filtering at search time. |
 
 Older baselines (ACORN, Filtered‑DiskANN, ablative pillars P1/P2/P3) are **not** wired into this repo yet; the code focuses on a clean comparison between:
 
@@ -242,7 +242,7 @@ If you use this code or ideas in scientific work, please cite:
 
 ```bibtex
 @misc{tanns-c-2026,
-  title   = {{TANNS-C}: Temporal and Category-Aware Approximate Nearest Neighbour Search},
+  title   = {{taco-gan}: Temporal And Category Optimised Graph Approximate Nearest Neighbour Search Search},
   author  = {Tan, T.K.},
   year    = {2026},
   note    = {HKUST}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-postfilter.py — Post-Filtering Baseline for TANNS-C Evaluation.
+postfilter.py — Post-Filtering Baseline for TACO-GANN Evaluation.
 
 Strategy:
   1. Build a single HNSW index on ALL database vectors (no metadata awareness).

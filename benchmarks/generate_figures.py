@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-generate_figures.py — Publication-quality figures for TANNS-C paper.
+generate_figures.py — Publication-quality figures for TACO-GANN paper.
 
 Methods compared (3 baselines only — no ACORN, no FDiskANN):
   - PostFilter-HNSW : HNSW + dual post-filter (category AND time)
   - TANNS+Post      : TANNS timestamp graph + category post-filter
-  - TANNS-C         : Full system (category-aware graph + HNT)
+  - TACO-GANN         : Full system (category-aware graph + HNT)
 
 Style: matplotlib, 3.5-inch width (two-column paper),
 PDF-compatible fonts (Type 42), 300 DPI.
@@ -67,19 +67,19 @@ plt.rcParams.update({
 COLORS = {
     "PostFilter": "#CC4444",  # red
     "TANNS+Post": "#EE7733",  # orange
-    "TANNS-C":    "#222222",  # black (ours)
+    "TACO-GANN":    "#222222",  # black (ours)
 }
 
 MARKERS = {
     "PostFilter": "v",
     "TANNS+Post": "^",
-    "TANNS-C":    "*",
+    "TACO-GANN":    "*",
 }
 
 DISPLAY_NAMES = {
     "PostFilter": "Post-filter (HNSW)",
     "TANNS+Post": "TANNS+Post",
-    "TANNS-C":    "TANNS-C (ours)",
+    "TACO-GANN":    "TACO-GANN (ours)",
 }
 
 # CSV method name → internal key
@@ -87,11 +87,11 @@ METHOD_MAP = {
     "PostFilter-HNSW":  "PostFilter",
     "TANNS+PostFilter": "TANNS+Post",
     "TANNS+Post":       "TANNS+Post",
-    "TANNS-C":          "TANNS-C",
+    "TACO-GANN":          "TACO-GANN",
 }
 
-# Plot order: baselines first, TANNS-C last (on top)
-PLOT_ORDER = ["PostFilter", "TANNS+Post", "TANNS-C"]
+# Plot order: baselines first, TACO-GANN last (on top)
+PLOT_ORDER = ["PostFilter", "TANNS+Post", "TACO-GANN"]
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────
@@ -134,9 +134,9 @@ def _plot_series(ax, data, y_key):
             continue
         qps_vals = [p["qps"]    for p in points]
         y_vals   = [p[y_key]    for p in points]
-        lw      = 2.5 if key == "TANNS-C" else 1.4
-        ms      = 9   if key == "TANNS-C" else 5
-        zorder  = 10  if key == "TANNS-C" else 3
+        lw      = 2.5 if key == "TACO-GANN" else 1.4
+        ms      = 9   if key == "TACO-GANN" else 5
+        zorder  = 10  if key == "TACO-GANN" else 3
         ax.plot(
             qps_vals, y_vals,
             marker=MARKERS[key], color=COLORS[key],
@@ -291,9 +291,9 @@ def fig4_visited_vs_recall(results_dir, outdir):
         visited_sorted = visited_arr[order]
         recall_sorted  = recall_arr[order]
 
-        lw     = 2.5 if key == "TANNS-C" else 1.4
-        ms     = 9   if key == "TANNS-C" else 5
-        zorder = 10  if key == "TANNS-C" else 3
+        lw     = 2.5 if key == "TACO-GANN" else 1.4
+        ms     = 9   if key == "TACO-GANN" else 5
+        zorder = 10  if key == "TACO-GANN" else 3
 
         ax.scatter(visited_sorted, recall_sorted,
                    color=COLORS[key], label=DISPLAY_NAMES[key],
@@ -352,9 +352,9 @@ def fig5_selectivity(results_dir, outdir):
         if not xs:
             continue
 
-        lw     = 2.5 if key == "TANNS-C" else 1.4
-        ms     = 9   if key == "TANNS-C" else 5
-        zorder = 10  if key == "TANNS-C" else 3
+        lw     = 2.5 if key == "TACO-GANN" else 1.4
+        ms     = 9   if key == "TACO-GANN" else 5
+        zorder = 10  if key == "TACO-GANN" else 3
 
         ax.plot(xs, ys,
                 marker=MARKERS[key], color=COLORS[key],
@@ -370,7 +370,7 @@ def fig5_selectivity(results_dir, outdir):
     ax.set_xticklabels(["0.25%", "0.5%", "1%", "2%", "5%", "10%", "20%"],
                        fontsize=7.5)
 
-    # Shade low-selectivity region (< 1%) — where TANNS-C's advantage is largest
+    # Shade low-selectivity region (< 1%) — where TACO-GANN's advantage is largest
     ax.axvspan(0.1, 1.0, alpha=0.07, color="#FF0000")
     ax.text(0.42, 0.44, "low\nselectivity", fontsize=6, color="#CC0000",
             ha="center", va="bottom", fontstyle="italic")
@@ -399,7 +399,7 @@ def fig6_construction(results_dir, outdir):
     BAR_DISPLAY = {
         "PostFilter": "PostFilter\n(HNSW)",
         "TANNS+Post": "TANNS\n+Post",
-        "TANNS-C":    "TANNS-C\n(ours)",
+        "TACO-GANN":    "TACO-GANN\n(ours)",
     }
 
     methods_present = [m for m in PLOT_ORDER if m in costs]
@@ -453,7 +453,7 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(
-        description="Generate publication figures for TANNS-C"
+        description="Generate publication figures for TACO-GANN"
     )
     parser.add_argument(
         "--results-dir",
