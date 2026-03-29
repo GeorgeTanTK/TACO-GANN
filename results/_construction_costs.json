@@ -1,14 +1,14 @@
 {
   "PostFilter": {
-    "build_time_s": 82.665,
+    "build_time_s": 85.389,
     "peak_mem_mb": 1.53
   },
   "TANNS+Post": {
-    "build_time_s": 2195.533,
-    "peak_mem_mb": 1852.51
+    "build_time_s": 1917.494,
+    "peak_mem_mb": 1852.55
   },
   "TACO-GANN": {
-    "build_time_s": 3906.289,
+    "build_time_s": 4614.321,
     "peak_mem_mb": 1942.44
   }
 }

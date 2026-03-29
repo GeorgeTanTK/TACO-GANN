@@ -30,31 +30,36 @@ echo ""
 
 # Step 1 — Download dataset
 if [ "$SKIP_DOWNLOAD" = false ]; then
-  echo "[1/5] Downloading arxiv-for-FANNS dataset..."
+  echo "[1/6] Downloading arxiv-for-FANNS dataset..."
   python download_data.py --out-dir "$DATA_DIR" --split "$SPLIT"
 else
-  echo "[1/5] Skipping download (--skip-download)"
+  echo "[1/6] Skipping download (--skip-download)"
 fi
 
 # Step 2 — Compute ground truth
 echo ""
-echo "[2/5] Computing ground truth..."
+echo "[2/6] Computing ground truth..."
 python -m benchmarks.compute_ground_truth --data-dir "$DATA_DIR" --output-dir results
 
 # Step 3 — Evaluate all baselines (PostFilter + PreFilter)
 echo ""
-echo "[3/5] Evaluating baselines..."
+echo "[3/6] Evaluating baselines..."
 python -m benchmarks.evaluate_all --data-dir "$DATA_DIR" --output-dir results
 
 # Step 4 — Compute selectivity recall & construction costs
 echo ""
-echo "[4/5] Computing selectivity and construction costs..."
+echo "[4/6] Computing selectivity and construction costs..."
 python -m benchmarks.compute_selectivity --data-dir "$DATA_DIR" --results-dir results
 python -m benchmarks.measure_construction --data-dir "$DATA_DIR" --results-dir results
 
+# Step 4 — recall and QPS sweeps
+echo ""
+echo "[5/6] Computing and qps sweep..."
+python -m benchmarks.recall_qps_sweep --data-dir "$DATA_DIR" --results-dir results
+
 # Step 5 — Generate figures
 echo ""
-echo "[5/5] Generating publication figures..."
+echo "[6/6] Generating publication figures..."
 python -m benchmarks.generate_figures --results-dir results --output-dir figures
 
 echo ""

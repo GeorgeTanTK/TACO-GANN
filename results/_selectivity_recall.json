@@ -58,7 +58,7 @@
         "count": 384
       },
       "2-3%": {
-        "mean_recall": 0.2576,
+        "mean_recall": 0.2588,
         "count": 85
       },
       "3-5%": {
@@ -84,7 +84,7 @@
         "count": 58
       },
       "1-2%": {
-        "mean_recall": 0.6799,
+        "mean_recall": 0.6802,
         "count": 384
       },
       "2-3%": {
@@ -92,7 +92,7 @@
         "count": 85
       },
       "3-5%": {
-        "mean_recall": 0.7474,
+        "mean_recall": 0.7477,
         "count": 308
       },
       "5-10%": {
