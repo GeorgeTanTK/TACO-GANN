@@ -11,7 +11,7 @@ TACO-GANN is designed for users who need:
 It combines:
 
 - A **category-aware Filtered‑Vamana graph** (per‑label ST‑connectivity, medoid entry points, alpha‑blended neighbour scoring), and  
-- **Per‑node Historic Neighbour Tables (HNTs)** that reconstruct neighbours valid in a query time window.
+- **Per‑node Historic Neighbour Trees (HNTs)** that reconstruct neighbours valid in a query time window.
 
 The target query is:
 
