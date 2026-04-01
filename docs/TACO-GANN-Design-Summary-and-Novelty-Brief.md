@@ -178,7 +178,7 @@ TANNS‑C is designed to inhabit precisely this niche.
 TANNS‑C, as implemented in this repository, combines ideas from both axes:
 
 - A **Filtered‑Vamana–style category‑aware graph** (per‑label entry points, ST‑connectivity invariants, and alpha‑blended neighbour scoring) inspired by Filtered‑DiskANN[cite:136]; and  
-- **Per‑node historic neighbour tables (HNT‑style)** that track how each node’s neighbours change across time, enabling reconstruction of neighbours valid for \([t_start, t_end]\) at query time, in the spirit of TANNS[cite:74].
+- **Per‑node historic neighbour trees (HNT‑style)** that track how each node’s neighbours change across time, enabling reconstruction of neighbours valid for \([t_start, t_end]\) at query time, in the spirit of TANNS[cite:74].
 
 On top of this graph, TANNS‑C executes beam search that:
 
@@ -219,4 +219,4 @@ The following links are useful entry points to the primary literature and datase
 | FANNS Benchmark paper | ETH SPCL publication page[cite:134] |
 | SPCL/arxiv-for-fanns-medium dataset | HuggingFace dataset page[cite:114] |
 
-This matrix is intended as a **living document**. As new temporal‑ or filter‑aware ANN methods appear, they can be slotted into the tables and capability matrix above by filling in their temporal and filter characteristics.
+This matrix is intended as a **living document**. As new temporal or filter‑aware ANN methods appear, they can be slotted into the tables and capability matrix above by filling in their temporal and filter characteristics.
